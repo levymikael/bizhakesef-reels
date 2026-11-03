@@ -1,0 +1,38 @@
+name: Montage d'un reel Bizhakesef
+
+# Déclenché par le scénario Make via l'API GitHub (repository_dispatch, type « render_reel »)
+on:
+  repository_dispatch:
+    types: [render_reel]
+
+concurrency:
+  group: reels
+  cancel-in-progress: false
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      MAKE_HOOK_URL: ${{ secrets.MAKE_HOOK_URL }}
+      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+      JOB_ID: ${{ github.event.client_payload.id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Préparer la commande
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: printf '%s' "$PAYLOAD" > job.json && python -c "import json;j=json.load(open('job.json'));print(j['id'],len(j['slides']),'slides')"
+      - name: Monter le reel
+        run: python render_reel.py job.json reel.mp4
+      - name: Envoyer la vidéo et prévenir Telegram
+        run: python notify.py "$JOB_ID" reel.mp4
+      - name: Signaler un échec
+        if: failure()
+        run: python notify.py "$JOB_ID" --error "Le montage du reel a échoué (voir GitHub Actions, run ${{ github.run_id }})."

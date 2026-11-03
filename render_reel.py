@@ -18,10 +18,12 @@ TEXT_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
 TTS_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
 VOICE = os.environ.get("REEL_VOICE", "Charon")
 W, H, FPS = 1080, 1920, 30
-FADE = 0.4
+FADE = 0.3
+SPEED = 1.08  # voix légèrement accélérée
+TRANSITIONS = ["slideleft", "smoothup", "slideleft", "smoothleft", "slideup"]
 
 PROMPT = """Tu écris la voix off d'un reel Instagram de @bizhakesef, un média d'information en français sur l'économie israélienne.
-À partir de la légende ci-dessous, écris un texte de 50 à 65 mots, lu en 20 à 25 secondes.
+À partir de la légende ci-dessous, écris un texte de 45 à 60 mots, lu en 18 à 23 secondes. C'est une limite stricte.
 - Ton de présentateur de journal économique : factuel, neutre, clair. Pas de tutoiement, pas de question au spectateur.
 - Première phrase : l'information principale avec son chiffre clé.
 - Ensuite deux ou trois faits, puis une phrase de contexte.
@@ -58,7 +60,9 @@ def narration(caption):
 
 
 def tts(text, out_wav):
-    body = {"contents": [{"parts": [{"text": "Lis ce texte en français, avec le ton posé et dynamique d'un présentateur de journal économique : " + text}]}],
+    # Pas de consigne dans le texte : le modèle TTS la lirait à voix haute.
+    spoken = text.replace("Bizhakesef", "Biz Ha Késef").replace("@bizhakesef", "Biz Ha Késef")
+    body = {"contents": [{"parts": [{"text": spoken}]}],
             "generationConfig": {"responseModalities": ["AUDIO"],
                                  "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": VOICE}}}}}
     d = first_ok(TTS_MODELS, body)
@@ -96,33 +100,42 @@ def render(job, out):
     dur_voice = tts(text, voice)
 
     n = len(slides)
-    # Durée par slide calée sur la voix (toute la voix doit tenir), entre 2,2 et 7 s ; la couverture reste un peu plus longtemps
-    per = max(2.2, min(7.0, (dur_voice + 1.5 + FADE * (n - 1) - 0.6) / n))
-    durs = [per + 0.6 if i == 0 else per for i in range(n)]
-    total = sum(durs) - FADE * (n - 1)
+    dur_spoken = dur_voice / SPEED
+    # Rythme rapide : durée par slide calée sur la voix, entre 1,8 et 4 s ; la couverture reste un peu plus longtemps
+    per = max(1.8, min(4.0, (dur_spoken + 1.0 + FADE * (n - 1) - 0.5) / n))
+    durs = [per + 0.5 if i == 0 else per for i in range(n)]
+    total = max(sum(durs) - FADE * (n - 1), dur_spoken + 0.8)
+    durs[-1] += total - (sum(durs) - FADE * (n - 1))
 
     inputs, filters = [], []
     for i, (p, d) in enumerate(zip(slides, durs)):
         inputs += ["-loop", "1", "-t", f"{d:.3f}", "-i", str(p)]
-        frames = int(d * FPS)
-        # Fond blanc, slide 4:5 centrée (elle porte déjà les bandes du drapeau), zoom très lent
+        frames = max(1, int(d * FPS))
+        # Slide 4:5 sur fond blanc. On masque « Swipe → » (inutile en vidéo), puis zoom avant marqué
+        # (8 % sur la durée de la slide) pour donner du mouvement.
         filters.append(
             f"[{i}:v]scale=1080:1350,setsar=1,"
-            f"zoompan=z='min(1.0+0.0006*on,1.05)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=1080x1350:fps={FPS},"
-            f"pad={W}:{H}:0:(oh-ih)/2:color=white,"
-            f"format=yuv420p[v{i}]")
+            f"drawbox=x=830:y=1212:w=200:h=72:color=white:t=fill,"
+            f"zoompan=z='1.0+0.08*on/{frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=1080x1350:fps={FPS},"
+            f"pad={W}:{H}:0:(oh-ih)/2:color=white,format=yuv420p[v{i}]")
     chain, offset = "[v0]", 0.0
     for i in range(1, n):
         offset += durs[i - 1] - FADE
-        filters.append(f"{chain}[v{i}]xfade=transition=fade:duration={FADE}:offset={offset:.3f}[x{i}]")
+        tr = TRANSITIONS[(i - 1) % len(TRANSITIONS)]
+        filters.append(f"{chain}[v{i}]xfade=transition={tr}:duration={FADE}:offset={offset:.3f}[x{i}]")
         chain = f"[x{i}]"
-    filters.append(f"[{n}:a]adelay=500|500,apad,atrim=0:{total:.3f},afade=t=out:st={max(0, total - 0.8):.3f}:d=0.8[a]")
+    # Barre de progression bleue en haut de l'écran
+    filters.append(f"color=c=0x0038B8:s={W}x14:r={FPS}:d={total:.3f}[bar]")
+    filters.append(f"{chain}[bar]overlay=x='-W+W*t/{total:.3f}':y=150:shortest=1[vout]")
+    chain = "[vout]"
+    filters.append(f"[{n}:a]atempo={SPEED},adelay=350|350,apad,atrim=0:{total:.3f},"
+                   f"afade=t=out:st={max(0, total - 0.6):.3f}:d=0.6,loudnorm=I=-16:TP=-1.5[a]")
     cmd = [FFMPEG, "-y", *inputs, "-i", str(voice), "-filter_complex", ";".join(filters),
            "-map", chain, "-map", "[a]", "-r", str(FPS), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
            "-pix_fmt", "yuv420p", "-profile:v", "high", "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
            "-movflags", "+faststart", "-t", f"{total:.3f}", str(out)]
     subprocess.run(cmd, check=True, capture_output=True)
-    return {"duree": round(total, 1), "voix": round(dur_voice, 1), "slides": n, "narration": text}
+    return {"duree": round(total, 1), "voix": round(dur_spoken, 1), "slides": n, "narration": text}
 
 
 if __name__ == "__main__":

@@ -223,7 +223,19 @@ function render(t) {
   document.getElementById("w3").style.transform = `translateX(${w3}px) skewX(-14deg)`;
 }
 window.render = render;
-window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(im => im.decode().catch(() => 0))));
+// Les grands chiffres sont réduits jusqu'à tenir dans la largeur de l'écran (960 px utiles)
+function fitNumbers() {
+  document.querySelectorAll(".scene").forEach(sc => {
+  sc.style.display = "block";
+  sc.querySelectorAll(".big, .sticker").forEach(el => {
+    let fs = parseFloat(getComputedStyle(el).fontSize);
+    const max = el.classList.contains("sticker") ? 560 : 960;
+    while (el.scrollWidth > max && fs > 60) { fs -= 6; el.style.fontSize = fs + "px"; }
+  });
+  sc.style.display = "none";
+});
+}
+window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(im => im.decode().catch(() => 0)))).then(fitNumbers);
 render(0);
 </script>
 </body>

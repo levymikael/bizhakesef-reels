@@ -182,7 +182,8 @@ function anim(el, lt) {
 function render(t) {
   let i = 0;
   while (i < N - 1 && t >= STARTS[i + 1]) i++;
-  const lt = t - STARTS[i], dur = (i < N - 1 ? STARTS[i + 1] : T) - STARTS[i];
+  // La couverture est déjà presque en place dès la première image (accroche et miniature du reel)
+  const lt = t - STARTS[i] + (i === 0 ? .5 : 0), dur = (i < N - 1 ? STARTS[i + 1] : T) - STARTS[i];
   document.querySelectorAll(".scene").forEach((sc, j) => { sc.style.display = j === i ? "block" : "none"; });
   const sc = document.getElementById("s" + i);
   sc.querySelectorAll(".a").forEach(el => anim(el, lt));

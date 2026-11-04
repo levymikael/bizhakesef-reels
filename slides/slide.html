@@ -1,0 +1,54 @@
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<div class="slide t-{{type}} tend-{{tendance}}">
+  <div class="glow"></div>
+  <div class="grid"></div>
+  <header class="top">
+    <div class="brand"><span class="mark">₪</span>BIZHAKESEF</div>
+    <div class="count">{{num}}/{{total}}</div>
+  </header>
+  <main class="body">
+    <div class="kicker">{{kicker}}</div>
+    <div class="chiffre fit" data-max="230" data-min="120">{{chiffre}}</div>
+    <h1 class="titre fit" data-max="92" data-min="56">{{titre}}</h1>
+    <p class="texte fit" data-max="58" data-min="38">{{texte}}</p>
+    <div class="follow">Suivre @bizhakesef</div>
+  </main>
+  <footer class="bottom">
+    <div class="meta"><span class="source">{{source}}</span><span class="date">{{date}}</span></div>
+    <div class="swipe">Swipe <span>→</span></div>
+  </footer>
+</div>
+<script>
+(function () {
+  // 1. Typographie française : espace insécable avant ? ! : ; % et entre un nombre et son unité
+  var NB = String.fromCharCode(160);
+  var rules = [
+    [new RegExp(' ([?!:;%»])', 'g'), NB + '$1'],
+    [new RegExp('« ', 'g'), '«' + NB],
+    [new RegExp('([0-9]) (?=(Md|M|k)?[$€₪]|milliards?|millions?)', 'g'), '$1' + NB],
+    [new RegExp('([0-9]) (?=[0-9]{3}([^0-9]|$))', 'g'), '$1' + NB]
+  ];
+  document.querySelectorAll('.fit, .kicker').forEach(function (el) {
+    var t = el.textContent;
+    rules.forEach(function (r) { t = t.replace(r[0], r[1]); });
+    el.textContent = t;
+  });
+
+  // 2. Réduit la taille de police tant que le bloc texte déborde de la zone utile
+  var body = document.querySelector('.body');
+  var fits = Array.prototype.slice.call(document.querySelectorAll('.fit'));
+  function overflow() { return body.scrollHeight > body.clientHeight + 1; }
+  var isPoint = !!document.querySelector('.t-point');
+  fits.forEach(function (el) {
+    // Sur une slide « point », le titre reste secondaire face au chiffre
+    if (isPoint && el.classList.contains('titre')) { el.dataset.max = 62; el.dataset.min = 44; }
+    el.style.fontSize = el.dataset.max + 'px';
+  });
+  for (var step = 0; step < 60 && overflow(); step++) {
+    fits.forEach(function (el) {
+      var s = parseFloat(el.style.fontSize);
+      if (s > +el.dataset.min) el.style.fontSize = (s * 0.96) + 'px';
+    });
+  }
+})();
+</script>

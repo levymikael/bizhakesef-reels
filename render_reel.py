@@ -74,7 +74,7 @@ def first_ok(models, body):
                 return gemini(m, body)
             except Exception as e:  # 503 / 429 fréquents sur l'offre gratuite : on alterne et on patiente
                 last = e
-        time.sleep(15 * (attempt + 1))
+        time.sleep(5 * (attempt + 1))
     raise RuntimeError(f"Gemini indisponible : {last}")
 
 
@@ -355,32 +355,51 @@ def render(job, out):
         slides.append(p)
     n = len(slides)
 
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    t0 = time.time()
+    step = lambda name: print(f"[{time.time() - t0:5.1f} s] {name}", file=sys.stderr, flush=True)
+    step("slides téléchargées")
     plan = job.get("plan") or analyse(job["caption"], slides)
+    step("analyse Gemini terminée")
     scenes, ent = plan["scenes"], plan.get("entite") or {}
-    photo = None
-    if ent.get("type", "aucune") != "aucune":
-        photo = wiki_photo(ent.get("wikipedia"), ent.get("nom"), job.get("caption", ""))
-        if photo:
-            photo.update({"nom": ent.get("nom", ""), "credit": "Photo : Wikimedia Commons"})
-    for s in scenes[1:-1]:
-        w = s.get("entite_wikipedia", "")
-        if w and w != ent.get("wikipedia"):
-            s["photo"] = wiki_photo(w, w, s.get("titre", "") + " — " + job.get("caption", ""))
+    phrases = [s["phrase"] for s in scenes]
+
+    def photos():  # recherche et contre-vérification des photos
+        photo = None
+        if ent.get("type", "aucune") != "aucune":
+            photo = wiki_photo(ent.get("wikipedia"), ent.get("nom"), job.get("caption", ""))
+            if photo:
+                photo.update({"nom": ent.get("nom", ""), "credit": "Photo : Wikimedia Commons"})
+        for s in scenes[1:-1]:
+            w = s.get("entite_wikipedia", "")
+            if w and w != ent.get("wikipedia"):
+                s["photo"] = wiki_photo(w, w, s.get("titre", "") + " — " + job.get("caption", ""))
+        step("photos vérifiées")
+        return photo
+
+    def voix():  # synthèse vocale, accélération, silences retirés
+        raw = tmp / "voice_raw.wav"
+        tts("\n\n".join(phrases), raw)
+        v = tmp / "voice.wav"
+        run(["-y", "-i", str(raw), "-af", f"atempo={SPEED},silenceremove=start_periods=1:start_threshold=-45dB,"
+             "areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse", "-ar", "48000", str(v)])
+        step("voix prête")
+        return v
+
+    # Les photos et la voix ne dépendent pas l'une de l'autre : on les prépare en même temps
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_photo, f_voice = ex.submit(photos), ex.submit(voix)
+        photo, voice = f_photo.result(), f_voice.result()
     (tmp / "plan.json").write_text(json.dumps({**plan, "verification_photos": PHOTO_LOG}, ensure_ascii=False, indent=1,
                                               default=lambda o: None), encoding="utf-8")
-
-    phrases = [s["phrase"] for s in scenes]
-    raw = tmp / "voice_raw.wav"
-    tts("\n\n".join(phrases), raw)
-    voice = tmp / "voice.wav"
-    run(["-y", "-i", str(raw), "-af", f"atempo={SPEED},silenceremove=start_periods=1:start_threshold=-45dB,"
-         "areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse", "-ar", "48000", str(voice)])
     dur_voice = wav_duration(voice)
     cuts = [LEAD + c for c in boundaries(phrases, voice, dur_voice)]
     total = LEAD + dur_voice + TAIL
 
     video = tmp / "video.mp4"
     frames_to_video(scenes, photo, cuts, total, video)
+    step("animation filmée")
 
     # Son : voix + fond musical qui s'efface sous la voix + whoosh à chaque transition
     music = Path(__file__).with_name("music.mp3")
@@ -403,6 +422,7 @@ def render(job, out):
     run(["-y", "-i", str(video), "-i", str(voice), "-i", str(music), "-filter_complex", ";".join(filters),
          "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
          "-movflags", "+faststart", "-t", f"{total:.3f}", str(out)])
+    step("son mixé, reel terminé")
     return {"duree": round(total, 1), "scenes": n, "coupes": [round(c, 2) for c in cuts],
             "entite": ent, "photo": photo and photo.get("page"), "phrases": phrases, "plan": str(tmp / "plan.json")}
 

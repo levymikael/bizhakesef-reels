@@ -19,7 +19,7 @@ from pathlib import Path
 
 FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
 KEY = os.environ["GEMINI_API_KEY"]
-TEXT_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
+TEXT_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest"]  # Lite d'abord : Flash est limité à 20 requêtes par jour en gratuit
 TTS_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
 VOICE = os.environ.get("REEL_VOICE", "Charon")
 W, H, FPS = 1080, 1920, 30

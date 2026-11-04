@@ -24,10 +24,10 @@ jobs:
       PW_CHANNEL: chrome
     steps:
       - uses: actions/checkout@v4
-      - name: Installer FFmpeg et Playwright (Chrome est déjà présent sur la machine)
+      - name: Installer FFmpeg et Playwright (paquets Python, Chrome est déjà présent sur la machine)
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install -q playwright
+          pip install -q playwright imageio-ffmpeg
+          echo "FFMPEG=$(python -c 'import imageio_ffmpeg as i; print(i.get_ffmpeg_exe())')" >> "$GITHUB_ENV"
       - name: Préparer la commande
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}

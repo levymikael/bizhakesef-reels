@@ -1,0 +1,32 @@
+name: Slides d'un carrousel Bizhakesef
+
+# Déclenché par le scénario Make via l'API GitHub (repository_dispatch, type « render_slides »)
+on:
+  repository_dispatch:
+    types: [render_slides]
+
+jobs:
+  slides:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      MAKE_HOOK_URL: ${{ secrets.MAKE_HOOK_URL }}
+      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+      JOB_ID: ${{ github.event.client_payload.id }}
+      PW_CHANNEL: chrome
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer Playwright (Chrome est déjà présent sur la machine)
+        run: pip install -q playwright
+      - name: Préparer la commande
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: printf '%s' "$PAYLOAD" > job.json
+      - name: Rendre, héberger et prévenir Telegram
+        run: python render_slides.py job.json
+      - name: Signaler un échec
+        if: failure()
+        run: python -c "from notify import tell_make; tell_make('SLIDESERR|$JOB_ID|La création des slides a échoué (GitHub Actions, run ${{ github.run_id }}).')"

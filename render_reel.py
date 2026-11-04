@@ -139,10 +139,39 @@ def _norm(s):
     return re.findall(r"[a-z0-9]+", s)
 
 
-def wiki_photo(title, nom=""):
-    """Image principale de la page Wikipédia (photo d'une personne, logo ou siège d'une société)."""
-    if not title:
+VERIF_SCHEMA = {"type": "object", "required": ["correspond", "raison"],
+                "properties": {"correspond": {"type": "boolean"}, "raison": {"type": "string"}}}
+PHOTO_LOG = []  # décisions de vérification, enregistrées dans plan.json
+
+
+def verify_photo(nom, contexte, page, desc, data, mime):
+    """Contre-vérification par Gemini : la page Wikipédia et son image représentent-elles bien l'entité de l'article ?"""
+    prompt = (f"Un reel d'actualité économique israélienne doit montrer en couverture une photo de « {nom} ».\n"
+              f"Extrait de l'article : {contexte[:900]}\n\n"
+              f"Page Wikipédia trouvée : « {page} » — description : « {desc or 'aucune'} ». L'image jointe est l'image de cette page.\n"
+              "La page ET l'image représentent-elles exactement la même entité que celle dont parle l'article "
+              "(même société, même personne, même institution), et pas un homonyme, un produit, un lieu ou un autre sujet ? "
+              "Exemple : pour la start-up Sentra, une page sur la voiture Nissan Sentra ne correspond PAS. "
+              "Au moindre doute, réponds correspond = false.")
+    body = {"contents": [{"parts": [{"text": prompt},
+                                    {"inlineData": {"mimeType": mime, "data": base64.b64encode(data).decode()}}]}],
+            "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": VERIF_SCHEMA}}
+    try:
+        d = first_ok(TEXT_MODELS, body)
+        out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
+    except Exception as e:  # sans vérification possible, pas de photo
+        out = {"correspond": False, "raison": f"vérification impossible : {e}"}
+    PHOTO_LOG.append({"nom": nom, "page": page, "description": desc, **out})
+    return bool(out.get("correspond"))
+
+
+def wiki_photo(title, nom="", contexte=""):
+    """Image principale de la page Wikipédia (photo d'une personne, logo ou siège d'une société),
+    retenue seulement si Gemini confirme qu'elle correspond bien à l'entité de l'article."""
+    if not title and not nom:
         return None
+    nom = nom or title
+    checked = set()
     for lang in ("en", "fr", "he"):
         try:
             def q(**params):
@@ -150,23 +179,27 @@ def wiki_photo(title, nom=""):
                     {**params, "format": "json", "formatversion": 2})
                 with urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=30) as r:
                     return json.load(r)
-            img = dict(action="query", prop="pageimages", piprop="thumbnail", pithumbsize=1200, redirects=1)
-            found = None
-            pg = q(titles=title, **img)["query"]["pages"][0]
+            img = dict(action="query", prop="pageimages|description", piprop="thumbnail", pithumbsize=1200, redirects=1)
+            # Candidats : le titre exact proposé, puis les premiers résultats de recherche
+            cands = []
+            pg = q(titles=title or nom, **img)["query"]["pages"][0]
             if not pg.get("missing"):
-                found = pg
-            else:  # recherche, retenue seulement si le titre trouvé contient bien les mots du nom cherché
-                want = [w for w in _norm(nom or title) if len(w) > 2]
-                for h in q(action="query", list="search", srsearch=nom or title, srlimit=3)["query"]["search"]:
-                    if want and all(w in _norm(h["title"]) for w in want):
-                        found = q(titles=h["title"], **img)["query"]["pages"][0]
-                        break
-            if found and found.get("thumbnail"):
+                cands.append(pg)
+            for h in q(action="query", list="search", srsearch=nom, srlimit=3)["query"]["search"]:
+                if h["title"] not in [c.get("title") for c in cands]:
+                    cands.append(q(titles=h["title"], **img)["query"]["pages"][0])
+            for found in cands:
+                key = (lang, found.get("title"))
+                if not found.get("thumbnail") or key in checked or len(checked) >= 4:
+                    continue
+                checked.add(key)
                 url = found["thumbnail"]["source"]
                 with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
                     data = r.read()
                 fname = urllib.parse.unquote(url.split("/")[-1]).lower()
                 mime = "image/png" if data[:4] == b"\x89PNG" else "image/jpeg"
+                if not verify_photo(nom, contexte, found.get("title"), found.get("description", ""), data, mime):
+                    continue
                 return {"src": f"data:{mime};base64," + base64.b64encode(data).decode(),
                         "logo": ".svg" in fname or "logo" in fname or mime == "image/png",
                         "page": found.get("title")}
@@ -309,14 +342,15 @@ def render(job, out):
     scenes, ent = plan["scenes"], plan.get("entite") or {}
     photo = None
     if ent.get("type", "aucune") != "aucune":
-        photo = wiki_photo(ent.get("wikipedia"), ent.get("nom"))
+        photo = wiki_photo(ent.get("wikipedia"), ent.get("nom"), job.get("caption", ""))
         if photo:
             photo.update({"nom": ent.get("nom", ""), "credit": "Photo : Wikimedia Commons"})
     for s in scenes[1:-1]:
         w = s.get("entite_wikipedia", "")
         if w and w != ent.get("wikipedia"):
-            s["photo"] = wiki_photo(w)
-    (tmp / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+            s["photo"] = wiki_photo(w, w, s.get("titre", "") + " — " + job.get("caption", ""))
+    (tmp / "plan.json").write_text(json.dumps({**plan, "verification_photos": PHOTO_LOG}, ensure_ascii=False, indent=1,
+                                              default=lambda o: None), encoding="utf-8")
 
     phrases = [s["phrase"] for s in scenes]
     raw = tmp / "voice_raw.wav"

@@ -21,13 +21,13 @@ jobs:
       MAKE_HOOK_URL: ${{ secrets.MAKE_HOOK_URL }}
       ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
       JOB_ID: ${{ github.event.client_payload.id }}
+      PW_CHANNEL: chrome
     steps:
       - uses: actions/checkout@v4
-      - name: Installer FFmpeg et le navigateur d'animation
+      - name: Installer FFmpeg et Playwright (Chrome est déjà présent sur la machine)
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           pip install -q playwright
-          python -m playwright install --with-deps chromium
       - name: Préparer la commande
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}

@@ -35,8 +35,8 @@ Les {N} images jointes sont les slides du carrousel, dans l'ordre. Le reel aura 
 Pour chaque scène :
 - `phrase` : la phrase de voix off lue pendant la scène, 6 à 12 mots (limite stricte : le reel entier doit durer moins de 25 secondes), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
 - `kicker` : sur-titre de 1 à 3 mots en majuscules (ex. « RÉSULTATS », « CHIFFRE D'AFFAIRES »).
-- `titre` : le message de la scène, 50 caractères maximum. Ne recopie pas le texte de la slide : résume-le.
-- `texte` : précision utile en 85 caractères maximum, ou "" si inutile. Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).
+- `titre` : le message de la scène, 50 caractères maximum. Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
+- `texte` : précision utile en 85 caractères maximum, qui apporte un fait de plus (ne répète ni le titre ni le chiffre), ou "". Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).
 - `chiffre` : le chiffre clé tel qu'affiché, court, avec unité et signe (ex. « 670 M$ », « -45 % », « +3,2 % »), ou "".
 - `tendance` : « hausse », « baisse » ou « neutre ».
 - `entite_wikipedia` : si la scène parle surtout d'une autre société ou personne que l'entité principale, son titre exact sur Wikipédia en anglais ; sinon "".
@@ -108,8 +108,8 @@ def shorten(scenes):
     todo = [{"i": i, "champ": k, "max": m, "texte": s[k]} for i, s in enumerate(scenes)
             for k, m in LIMITS.items() if len(s.get(k, "")) > m]
     if not todo:
-        return
-    body = {"contents": [{"parts": [{"text": (
+        return _clean(scenes)
+    body ={"contents": [{"parts": [{"text": (
         "Raccourcis chaque texte sous sa longueur maximale en caractères (champ `max`), en français, "
         "sans changer ni inventer aucun fait ni aucun chiffre. Style titre de journal, nombres en chiffres. "
         "Réponds avec la même liste, où `texte` est raccourci.\n" + json.dumps(todo, ensure_ascii=False))}]}],
@@ -124,8 +124,13 @@ def shorten(scenes):
                 scenes[r["i"]][r["champ"]] = r["texte"]
     except Exception as e:
         print("raccourci", e, file=sys.stderr)
-    for s in scenes:  # garde-fou : un texte secondaire encore trop long est retiré plutôt que tassé
-        if len(s.get("texte", "")) > LIMITS["texte"] + 25:
+    _clean(scenes)
+
+
+def _clean(scenes):
+    for s in scenes:  # garde-fou : un texte secondaire encore trop long, ou qui répète le chiffre, est retiré
+        t = s.get("texte", "")
+        if len(t) > LIMITS["texte"] + 25 or len(_norm(t)) <= 3 or _norm(t) == _norm(s.get("chiffre", "")):
             s["texte"] = ""
 
 

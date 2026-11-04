@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=block" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --blue: #0038B8; --blue2: #2F6BFF; --ink: #0B1B3F; --muted: #5B6B8C; --soft: #EEF3FF;
+        --up: #0A8F55; --down: #D62839; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #fff; font-family: 'Inter', sans-serif; color: var(--ink); }
+#stage { position: absolute; inset: 0; overflow: hidden; background: #fff; }
+
+/* Décor permanent */
+.star { position: absolute; width: 1300px; height: 1300px; left: 260px; top: 520px; opacity: .05; }
+.blob { position: absolute; border-radius: 50%; background: var(--soft); }
+.band { position: absolute; left: -100px; width: 1300px; height: 34px; background: var(--blue); }
+.segs { position: absolute; left: 60px; right: 60px; top: 196px; display: flex; gap: 10px; }
+.seg { flex: 1; height: 10px; border-radius: 5px; background: rgba(0,56,184,.15); overflow: hidden; }
+.seg i { display: block; height: 100%; width: 0; background: var(--blue); }
+.brand { position: absolute; left: 60px; top: 244px; display: flex; align-items: center; gap: 16px;
+         font-weight: 900; letter-spacing: .14em; font-size: 34px; color: var(--blue); }
+.brand b { width: 48px; height: 48px; border-radius: 12px; background: var(--blue); display: grid; place-items: center; }
+.brand b svg { width: 30px; height: 30px; }
+
+/* Scènes */
+.scene { position: absolute; inset: 0; display: none; }
+.a { will-change: transform, opacity; }
+.kicker { position: absolute; left: 60px; top: 360px; padding: 14px 28px; border-radius: 40px; background: var(--blue);
+          color: #fff; font-weight: 800; font-size: 34px; letter-spacing: .08em; text-transform: uppercase; }
+.title { position: absolute; left: 60px; right: 60px; font-weight: 900; line-height: 1.04; letter-spacing: -.02em; }
+.title .w { display: inline-block; margin-right: .22em; }
+.text { position: absolute; left: 60px; right: 80px; font-weight: 600; font-size: 46px; line-height: 1.3; color: var(--muted); }
+.hl { position: relative; z-index: 0; }
+
+/* Couverture */
+.ph { position: absolute; left: 50%; top: 470px; width: 660px; height: 660px; margin-left: -330px; }
+.ph .clip { position: absolute; inset: 22px; border-radius: 50%; overflow: hidden; background: #fff; box-shadow: 0 30px 80px rgba(11,27,63,.18); }
+.ph .clip img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
+.ph.logo .clip img { object-fit: contain; padding: 90px; }
+.ph svg.ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.ph .name { position: absolute; left: 50%; bottom: -36px; transform: translateX(-50%); white-space: nowrap;
+            background: #fff; color: var(--ink); font-weight: 800; font-size: 36px; padding: 12px 30px; border-radius: 40px;
+            box-shadow: 0 10px 30px rgba(11,27,63,.15); }
+.sticker { position: absolute; right: 70px; top: 980px; padding: 18px 34px; border-radius: 26px; color: #fff;
+           font-weight: 900; font-size: 76px; letter-spacing: -.02em; box-shadow: 0 20px 50px rgba(11,27,63,.25); }
+.credit { position: absolute; right: 60px; top: 1150px; font-size: 20px; color: #9AA6BF; }
+
+/* Points */
+.big { position: absolute; left: 60px; top: 470px; font-weight: 900; font-size: 230px; letter-spacing: -.04em; line-height: 1; white-space: nowrap; }
+.big .arrow { display: inline-block; font-size: 120px; vertical-align: 40px; margin-right: 18px; }
+.bar { position: absolute; left: 60px; top: 740px; height: 22px; border-radius: 11px; }
+.mini { position: absolute; right: 60px; top: 340px; width: 170px; height: 170px; border-radius: 50%; overflow: hidden;
+        border: 8px solid var(--blue); background: #fff; }
+.mini img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
+.mini.logo img { object-fit: contain; padding: 22px; }
+
+/* Fin */
+.cta-logo { position: absolute; left: 50%; top: 560px; width: 300px; height: 300px; margin-left: -150px; border-radius: 70px;
+            background: var(--blue); display: grid; place-items: center; box-shadow: 0 40px 90px rgba(0,56,184,.35); }
+.cta-logo svg { width: 190px; height: 190px; }
+.cta-name { position: absolute; left: 0; right: 0; top: 920px; text-align: center; font-weight: 900; font-size: 88px; letter-spacing: .06em; color: var(--blue); }
+.cta-sub { position: absolute; left: 80px; right: 80px; top: 1040px; text-align: center; font-weight: 700; font-size: 50px; line-height: 1.25; }
+.cta-btn { position: absolute; left: 50%; top: 1230px; transform: translateX(-50%); padding: 30px 60px; border-radius: 60px;
+           background: var(--blue); color: #fff; font-weight: 800; font-size: 46px; white-space: nowrap; }
+
+/* Volet de transition */
+.wipe { position: absolute; top: -200px; height: 2320px; width: 1500px; left: 0; transform: translateX(2000px) skewX(-14deg); }
+.wipe.w1 { background: var(--blue); }
+.wipe.w2 { background: var(--blue2); }
+.wipe.w3 { background: #fff; width: 60px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const DATA = /*DATA*/null/*END*/;
+const STAR = `<svg viewBox="0 0 100 100"><g fill="none" stroke="#0038B8" stroke-width="3.2" stroke-linejoin="miter"><polygon points="50,8 86.4,71 13.6,71"/><polygon points="50,92 13.6,29 86.4,29"/></g></svg>`;
+const STAR_W = `<svg viewBox="0 0 100 100"><g fill="none" stroke="#fff" stroke-width="9" stroke-linejoin="miter"><polygon points="50,8 86.4,71 13.6,71"/><polygon points="50,92 13.6,29 86.4,29"/></g></svg>`;
+const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const nb = s => esc(s).replace(/ ([:;!?%€$»])/g, " $1").replace(/« /g, "« ");
+const words = (s, cls) => nb(s).split(/\s+/).filter(Boolean).map(w => `<span class="w a" data-k="${cls}">${w}</span>`).join("");
+const tcol = t => t === "hausse" ? "var(--up)" : t === "baisse" ? "var(--down)" : "var(--blue)";
+
+// Chiffre : préfixe, valeur numérique, décimales, suffixe (pour le compteur)
+function parseNum(s) {
+  const m = String(s || "").match(/^(.*?)([+\-−]?)(\d[\d\s  .]*?(?:,\d+)?)(\D.*)?$/);
+  if (!m) return null;
+  const raw = m[3].replace(/[\s  ]/g, "");
+  const dec = (raw.split(",")[1] || "").length;
+  const v = parseFloat(raw.replace(/\./g, "").replace(",", "."));
+  if (isNaN(v)) return null;
+  return { pre: m[1] + m[2].replace("−", "-"), v, dec, suf: m[4] || "" };
+}
+const fmt = (n, v) => n.pre + v.toLocaleString("fr-FR", { minimumFractionDigits: n.dec, maximumFractionDigits: n.dec }) + nb(n.suf);
+
+function titleSize(s, base) {
+  const L = String(s || "").length;
+  return L > 70 ? base * .72 : L > 50 ? base * .84 : base;
+}
+
+const stage = document.getElementById("stage");
+const S = DATA.scenes, N = S.length, T = DATA.total, CUTS = DATA.cuts, STARTS = [0, ...CUTS];
+
+stage.innerHTML = `
+  <div class="blob a" id="b1" style="width:900px;height:900px;left:-420px;top:1180px"></div>
+  <div class="blob a" id="b2" style="width:520px;height:520px;left:760px;top:240px"></div>
+  <div class="star a" id="star">${STAR}</div>
+  <div class="band" style="top:120px"></div><div class="band" style="top:1586px"></div>
+  <div class="segs">${S.map(() => '<div class="seg"><i></i></div>').join("")}</div>
+  <div class="brand"><b>${STAR_W}</b>BIZHAKESEF</div>
+  ${S.map((s, i) => sceneHTML(s, i)).join("")}
+  <div class="wipe w1" id="w1"></div><div class="wipe w2" id="w2"></div><div class="wipe w3" id="w3"></div>`;
+
+function photoHTML(p, cls) {
+  return p ? `<img src="${p.src}">` : "";
+}
+
+function sceneHTML(s, i) {
+  const col = tcol(s.tendance);
+  if (i === N - 1) {
+    return `<div class="scene" id="s${i}">
+      <div class="cta-logo a" data-k="pop">${STAR_W}</div>
+      <div class="cta-name a" data-k="up" data-d=".25">BIZHAKESEF</div>
+      <div class="cta-sub a" data-k="up" data-d=".4">L'actualité économique d'Israël, en&nbsp;français</div>
+      <div class="cta-btn a" data-k="pulse" data-d=".6">Suivre @bizhakesef</div></div>`;
+  }
+  if (i === 0) {
+    const p = DATA.photo, n = parseNum(s.chiffre);
+    const hasP = !!p;
+    const ty = hasP ? 1210 : 820;
+    return `<div class="scene" id="s0">
+      ${s.kicker ? `<div class="kicker a" data-k="left">${esc(s.kicker)}</div>` : ""}
+      ${hasP ? `<div class="ph ${p.logo ? "logo" : ""} a" data-k="photo" data-d=".05">
+          <div class="clip"><img class="kb" src="${p.src}"></div>
+          <svg class="ring" viewBox="0 0 660 660"><circle cx="330" cy="330" r="318" fill="none" stroke="#0038B8" stroke-width="14" stroke-linecap="round" class="ringc" style="stroke-dasharray:1998;stroke-dashoffset:1998"/></svg>
+          ${p.nom ? `<div class="name a" data-k="up" data-d=".45">${esc(p.nom)}</div>` : ""}</div>
+          ${p.credit ? `<div class="credit">${esc(p.credit)}</div>` : ""}`
+        : (n ? `<div class="big a" data-k="pop" style="top:470px;color:${col}"><span class="cnt" data-i="0">${esc(s.chiffre)}</span></div>` : "")}
+      ${hasP && s.chiffre ? `<div class="sticker a" data-k="sticker" data-d=".55" style="background:${col}"><span class="cnt" data-i="0">${esc(s.chiffre)}</span></div>` : ""}
+      <div class="title" style="top:${ty}px;font-size:${titleSize(s.titre, 92)}px">${words(s.titre, "word")}</div></div>`;
+  }
+  const n = parseNum(s.chiffre);
+  const arrow = s.tendance === "hausse" ? "▲" : s.tendance === "baisse" ? "▼" : "";
+  const top = n ? 830 : 560;
+  const mini = s.photo ? `<div class="mini ${s.photo.logo ? "logo" : ""} a" data-k="pop" data-d=".15"><img src="${s.photo.src}"></div>` : "";
+  return `<div class="scene" id="s${i}">
+    ${s.kicker ? `<div class="kicker a" data-k="left">${esc(s.kicker)}</div>` : ""}${mini}
+    ${s.chiffre ? `<div class="big a" data-k="pop" data-d=".05" style="color:${col};font-size:${String(s.chiffre).length > 9 ? 170 : 230}px">
+        ${arrow ? `<span class="arrow a" data-k="drop" data-d=".3">${arrow}</span>` : ""}<span class="cnt" data-i="${i}">${esc(s.chiffre)}</span></div>
+      <div class="bar a" data-k="grow" data-d=".25" style="background:${col}"></div>` : ""}
+    <div class="title" style="top:${top}px;font-size:${titleSize(s.titre, 82)}px">${words(s.titre, "word")}</div>
+    ${s.texte ? `<div class="text a" data-k="up" data-d="${.35 + .07 * String(s.titre || "").split(/\s+/).length}" style="top:${top + 90 + Math.ceil(String(s.titre || "").length / 20) * titleSize(s.titre, 82) * 1.04}px">${nb(s.texte)}</div>` : ""}
+  </div>`;
+}
+
+// Mise en place : délais en cascade pour les mots des titres
+document.querySelectorAll(".scene").forEach(sc => {
+  sc.querySelectorAll('.w').forEach((w, k) => { w.dataset.d = (.12 + k * .07).toFixed(2); });
+});
+
+const clamp = x => Math.max(0, Math.min(1, x));
+const eOut = x => 1 - Math.pow(1 - x, 3);
+const eBack = x => { const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const eInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+
+function anim(el, lt) {
+  const d = parseFloat(el.dataset.d || 0), k = el.dataset.k;
+  const p = clamp((lt - d) / (k === "photo" ? .55 : k === "grow" ? .6 : .38));
+  let tf = "", op = 1;
+  if (k === "word") { tf = `translateY(${(1 - eBack(p)) * 90}px) scale(${.6 + .4 * eBack(p)})`; op = clamp(p * 3); }
+  else if (k === "up") { tf = `translateY(${(1 - eOut(p)) * 70}px)`; op = p; }
+  else if (k === "left") { tf = `translateX(${(1 - eBack(p)) * -500}px)`; op = clamp(p * 2); }
+  else if (k === "pop") { tf = `scale(${.2 + .8 * eBack(p)})`; op = clamp(p * 3); }
+  else if (k === "drop") { tf = `translateY(${(1 - eBack(p)) * -120}px)`; op = clamp(p * 3); }
+  else if (k === "sticker") { tf = `rotate(${(1 - eBack(p)) * -25 - 4}deg) scale(${.2 + .8 * eBack(p)})`; op = clamp(p * 3); }
+  else if (k === "photo") { tf = `scale(${.55 + .45 * eBack(p)})`; op = clamp(p * 2.5); }
+  else if (k === "grow") { el.style.width = (eOut(p) * 620) + "px"; op = p > 0 ? 1 : 0; }
+  else if (k === "pulse") { const q = eBack(p); tf = `translateX(-50%) scale(${(.3 + .7 * q) * (1 + .05 * Math.sin(Math.max(0, lt - d - .4) * 7))})`; op = clamp(p * 3); }
+  el.style.transform = tf; el.style.opacity = op;
+}
+
+function render(t) {
+  let i = 0;
+  while (i < N - 1 && t >= STARTS[i + 1]) i++;
+  const lt = t - STARTS[i], dur = (i < N - 1 ? STARTS[i + 1] : T) - STARTS[i];
+  document.querySelectorAll(".scene").forEach((sc, j) => { sc.style.display = j === i ? "block" : "none"; });
+  const sc = document.getElementById("s" + i);
+  sc.querySelectorAll(".a").forEach(el => anim(el, lt));
+
+  // Compteurs
+  sc.querySelectorAll(".cnt").forEach(el => {
+    const n = parseNum(S[+el.dataset.i].chiffre);
+    if (!n) return;
+    const p = eOut(clamp((lt - .1) / .9));
+    el.innerHTML = fmt(n, n.v * p);
+  });
+  // Couverture : anneau qui se trace et lent zoom dans la photo
+  const ring = sc.querySelector(".ringc");
+  if (ring) ring.style.strokeDashoffset = 1998 * (1 - eInOut(clamp((lt - .15) / .9)));
+  const kb = sc.querySelector(".kb");
+  if (kb) kb.style.transform = `scale(${1.18 - .14 * clamp(lt / dur)})`;
+
+  // Décor vivant
+  document.getElementById("star").style.transform = `rotate(${t * 5}deg) scale(${1 + .03 * Math.sin(t * 1.3)})`;
+  document.getElementById("b1").style.transform = `translate(${Math.sin(t * .7) * 60}px, ${Math.cos(t * .5) * 40}px)`;
+  document.getElementById("b2").style.transform = `translate(${Math.cos(t * .6) * 50}px, ${Math.sin(t * .8) * 50}px) scale(${1 + .08 * Math.sin(t)})`;
+  document.querySelectorAll(".seg i").forEach((b, j) => {
+    const e = j < N - 1 ? STARTS[j + 1] : T;
+    b.style.width = (100 * clamp((t - STARTS[j]) / (e - STARTS[j]))) + "%";
+  });
+
+  // Volet bleu en biais qui balaie l'écran à chaque changement de scène
+  let w = 2000, w2 = 2000, w3 = 2000;
+  for (const c of CUTS) {
+    const p = (t - (c - .24)) / .5;
+    if (p >= 0 && p <= 1) {
+      const pos = q => 2000 - eInOut(clamp(q)) * 4100;
+      w = pos(p); w2 = pos(p - .1); w3 = pos(p - .05);
+    }
+  }
+  document.getElementById("w2").style.transform = `translateX(${w2}px) skewX(-14deg)`;
+  document.getElementById("w1").style.transform = `translateX(${w}px) skewX(-14deg)`;
+  document.getElementById("w3").style.transform = `translateX(${w3}px) skewX(-14deg)`;
+}
+window.render = render;
+window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(im => im.decode().catch(() => 0))));
+render(0);
+</script>
+</body>
+</html>

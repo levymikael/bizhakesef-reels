@@ -1,17 +1,20 @@
-"""Monte un reel vertical 1080x1920 à partir des slides d'un carrousel Bizhakesef.
+"""Monte un reel « motion design » 1080x1920 à partir des slides d'un carrousel Bizhakesef.
 
-Étapes : Gemini lit les slides et écrit une phrase de voix off par slide, synthèse vocale Gemini,
-détection des pauses entre les phrases pour caler chaque slide sur SA phrase, montage FFmpeg
-(effet « punch » à chaque slide, transitions rapides, whoosh, fond rythmé qui s'efface sous la voix,
-barre de progression), encodage au format attendu par Instagram (H.264, AAC, 30 i/s).
+Étapes :
+1. Gemini lit les slides et écrit, pour chaque scène, la phrase de voix off et le contenu à animer
+   (sur-titre, titre, chiffre, tendance), et nomme la société ou la personne principale.
+2. Photo de cette société ou personne récupérée sur Wikipédia (Wikimedia Commons), affichée en couverture.
+3. Synthèse vocale Gemini, détection des pauses : chaque scène démarre au début de SA phrase.
+4. Animation HTML (reel.html) filmée image par image dans Chromium (Playwright), puis FFmpeg :
+   voix, fond rythmé qui s'efface sous la voix, whoosh à chaque transition.
 
 Usage :
   python render_reel.py job.json sortie.mp4
 job.json : {"id": "...", "slides": ["https://.../1.jpg", ...], "caption": "...", "titre": "..."}
-Variables d'environnement : GEMINI_API_KEY (obligatoire), FFMPEG (chemin, par défaut « ffmpeg »).
-Musique : si un fichier music.mp3 est posé à côté de ce script, il remplace le fond rythmé synthétisé.
+Variables : GEMINI_API_KEY (obligatoire), FFMPEG (défaut « ffmpeg »), PW_CHANNEL (ex. « msedge » en local).
+Musique : un fichier music.mp3 posé à côté de ce script remplace le fond rythmé synthétisé.
 """
-import base64, json, os, subprocess, sys, tempfile, urllib.request, wave
+import base64, json, os, re, subprocess, sys, tempfile, unicodedata, urllib.parse, urllib.request, wave
 from pathlib import Path
 
 FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
@@ -20,26 +23,38 @@ TEXT_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
 TTS_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
 VOICE = os.environ.get("REEL_VOICE", "Charon")
 W, H, FPS = 1080, 1920, 30
-FADE = 0.25
 SPEED = 1.1        # voix légèrement accélérée
 LEAD = 0.15        # la voix démarre presque immédiatement (accroche)
-TAIL = 0.7
+TAIL = 0.9
 MUSIC_VOL = 0.5    # fond musical, atténué automatiquement quand la voix parle
-TRANSITIONS = ["slideleft", "smoothup", "slideleft", "smoothleft", "slideup"]
+UA = {"User-Agent": "BizhakesefReel/1.0 (https://github.com/levymikael/bizhakesef-reels)"}
 
-PROMPT = """Tu écris la voix off d'un reel Instagram de @bizhakesef, un média d'information en français sur l'économie israélienne.
-Les {N} images jointes sont les slides du reel, dans l'ordre. Écris exactement {N} phrases : la phrase n°k est lue pendant que la slide n°k est à l'écran.
-- Chaque phrase dit l'information visible sur SA slide, en 7 à 15 mots. Phrases courtes, rythmées, percutantes.
-- Phrase 1 : accroche forte avec le chiffre clé ou le fait le plus marquant.
-- Ton de présentateur de journal économique : factuel, neutre. Pas de tutoiement, pas de question au spectateur.
-- Dernière phrase exactement : « Suivez Bizhakesef pour l'actualité économique d'Israël. »
-- Uniquement les faits des slides et de la légende. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »).
-- Pas d'emoji, pas de hashtag.
+PROMPT = """Tu prépares un reel Instagram de @bizhakesef, un média d'information en français sur l'économie israélienne.
+Les {N} images jointes sont les slides du carrousel, dans l'ordre. Le reel aura exactement {N} scènes : la scène n°k reprend la slide n°k.
+
+Pour chaque scène :
+- `phrase` : la phrase de voix off lue pendant la scène, 6 à 12 mots (limite stricte : le reel entier doit durer moins de 25 secondes), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
+- `kicker` : sur-titre de 1 à 3 mots en majuscules (ex. « RÉSULTATS », « CHIFFRE D'AFFAIRES »).
+- `titre` : le message de la scène, 50 caractères maximum. Ne recopie pas le texte de la slide : résume-le.
+- `texte` : précision utile en 85 caractères maximum, ou "" si inutile. Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).
+- `chiffre` : le chiffre clé tel qu'affiché, court, avec unité et signe (ex. « 670 M$ », « -45 % », « +3,2 % »), ou "".
+- `tendance` : « hausse », « baisse » ou « neutre ».
+- `entite_wikipedia` : si la scène parle surtout d'une autre société ou personne que l'entité principale, son titre exact sur Wikipédia en anglais ; sinon "".
+La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
+
+`entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.
+
+Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affiché, doit être exactement celui de la slide (si la slide affiche 670 M$, la voix dit « six cent soixante-dix millions de dollars »). Pas d'emoji, pas de hashtag.
 
 LÉGENDE :
 """
-SCHEMA = {"type": "object", "properties": {"phrases": {"type": "array", "items": {"type": "string"}}},
-          "required": ["phrases"]}
+SCENE = {"type": "object", "properties": {k: {"type": "string"} for k in
+         ("phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia")},
+         "required": ["phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia"]}
+SCHEMA = {"type": "object", "required": ["entite", "scenes"], "properties": {
+    "entite": {"type": "object", "required": ["nom", "wikipedia", "type"],
+               "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"}}},
+    "scenes": {"type": "array", "items": SCENE}}}
 
 
 def gemini(model, body):
@@ -51,17 +66,19 @@ def gemini(model, body):
 
 
 def first_ok(models, body):
+    import time
     last = None
-    for m in models:
-        for _ in range(3):
+    for attempt in range(3):
+        for m in models:
             try:
                 return gemini(m, body)
-            except Exception as e:  # 503 fréquent sur l'offre gratuite : on réessaie puis on change de modèle
+            except Exception as e:  # 503 / 429 fréquents sur l'offre gratuite : on alterne et on patiente
                 last = e
+        time.sleep(15 * (attempt + 1))
     raise RuntimeError(f"Gemini indisponible : {last}")
 
 
-def narration(caption, slides):
+def analyse(caption, slides):
     parts = [{"text": PROMPT.replace("{N}", str(len(slides))) + caption}]
     for p in slides:
         data = Path(p).read_bytes()
@@ -71,13 +88,86 @@ def narration(caption, slides):
                                "generationConfig": {"responseMimeType": "application/json",
                                                     "responseJsonSchema": SCHEMA}})
     txt = "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought"))
-    phrases = [x.strip() for x in json.loads(txt)["phrases"] if x.strip()]
-    n = len(slides)
-    if len(phrases) > n:  # excédent regroupé sur l'avant-dernière slide
-        phrases = phrases[:n - 2] + [" ".join(phrases[n - 2:-1]), phrases[-1]]
-    while len(phrases) < n:
-        phrases.insert(-1, phrases[-2])
-    return phrases
+    out = json.loads(txt)
+    sc, n = [x for x in out["scenes"] if x.get("phrase", "").strip()], len(slides)
+    if len(sc) > n:  # excédent regroupé sur l'avant-dernière scène
+        sc[n - 2]["phrase"] = " ".join(x["phrase"] for x in sc[n - 2:-1])
+        sc = sc[:n - 1] + [sc[-1]]
+    while len(sc) < n:
+        sc.insert(-1, dict(sc[-2]))
+    out["scenes"] = sc
+    shorten(sc)
+    return out
+
+
+LIMITS = {"titre": 50, "texte": 85, "kicker": 22}
+
+
+def shorten(scenes):
+    """À l'écran, il faut des textes courts : tout champ trop long est réécrit plus court par Gemini."""
+    todo = [{"i": i, "champ": k, "max": m, "texte": s[k]} for i, s in enumerate(scenes)
+            for k, m in LIMITS.items() if len(s.get(k, "")) > m]
+    if not todo:
+        return
+    body = {"contents": [{"parts": [{"text": (
+        "Raccourcis chaque texte sous sa longueur maximale en caractères (champ `max`), en français, "
+        "sans changer ni inventer aucun fait ni aucun chiffre. Style titre de journal, nombres en chiffres. "
+        "Réponds avec la même liste, où `texte` est raccourci.\n" + json.dumps(todo, ensure_ascii=False))}]}],
+        "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": {
+            "type": "array", "items": {"type": "object", "required": ["i", "champ", "texte"], "properties": {
+                "i": {"type": "integer"}, "champ": {"type": "string"}, "texte": {"type": "string"}}}}}}
+    try:
+        d = first_ok(TEXT_MODELS, body)
+        txt = "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought"))
+        for r in json.loads(txt):
+            if 0 <= r["i"] < len(scenes) and r["champ"] in LIMITS:
+                scenes[r["i"]][r["champ"]] = r["texte"]
+    except Exception as e:
+        print("raccourci", e, file=sys.stderr)
+    for s in scenes:  # garde-fou : un texte secondaire encore trop long est retiré plutôt que tassé
+        if len(s.get("texte", "")) > LIMITS["texte"] + 25:
+            s["texte"] = ""
+
+
+def _norm(s):
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+    return re.findall(r"[a-z0-9]+", s)
+
+
+def wiki_photo(title, nom=""):
+    """Image principale de la page Wikipédia (photo d'une personne, logo ou siège d'une société)."""
+    if not title:
+        return None
+    for lang in ("en", "fr", "he"):
+        try:
+            def q(**params):
+                u = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode(
+                    {**params, "format": "json", "formatversion": 2})
+                with urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=30) as r:
+                    return json.load(r)
+            img = dict(action="query", prop="pageimages", piprop="thumbnail", pithumbsize=1200, redirects=1)
+            found = None
+            pg = q(titles=title, **img)["query"]["pages"][0]
+            if not pg.get("missing"):
+                found = pg
+            else:  # recherche, retenue seulement si le titre trouvé contient bien les mots du nom cherché
+                want = [w for w in _norm(nom or title) if len(w) > 2]
+                for h in q(action="query", list="search", srsearch=nom or title, srlimit=3)["query"]["search"]:
+                    if want and all(w in _norm(h["title"]) for w in want):
+                        found = q(titles=h["title"], **img)["query"]["pages"][0]
+                        break
+            if found and found.get("thumbnail"):
+                url = found["thumbnail"]["source"]
+                with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
+                    data = r.read()
+                fname = urllib.parse.unquote(url.split("/")[-1]).lower()
+                mime = "image/png" if data[:4] == b"\x89PNG" else "image/jpeg"
+                return {"src": f"data:{mime};base64," + base64.b64encode(data).decode(),
+                        "logo": ".svg" in fname or "logo" in fname or mime == "image/png",
+                        "page": found.get("title")}
+        except Exception as e:
+            print("photo", lang, title, e, file=sys.stderr)
+    return None
 
 
 def tts(text, out_wav):
@@ -171,6 +261,33 @@ def fetch(url, dest):
         Path(dest).write_bytes(r.read())
 
 
+def frames_to_video(scenes, photo, cuts, total, out_video):
+    """Filme reel.html image par image (rendu déterministe : render(t) fixe l'état exact de chaque image)."""
+    from playwright.sync_api import sync_playwright
+    html = Path(__file__).with_name("reel.html").read_text(encoding="utf-8")
+    data = {"scenes": scenes, "photo": photo, "cuts": cuts, "total": total}
+    page_file = Path(out_video).with_suffix(".html")
+    page_file.write_text(html.replace("/*DATA*/null/*END*/", json.dumps(data, ensure_ascii=False)), encoding="utf-8")
+    enc = subprocess.Popen([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-f", "image2pipe", "-framerate", str(FPS),
+                            "-c:v", "mjpeg", "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+                            "-pix_fmt", "yuv420p", "-profile:v", "high", "-r", str(FPS), str(out_video)],
+                           stdin=subprocess.PIPE)
+    with sync_playwright() as pw:
+        kw = {"channel": os.environ["PW_CHANNEL"]} if os.environ.get("PW_CHANNEL") else {}
+        br = pw.chromium.launch(**kw)
+        page = br.new_page(viewport={"width": W, "height": H}, device_scale_factor=1)
+        page.goto(page_file.resolve().as_uri())
+        page.evaluate("window.READY")
+        page.wait_for_timeout(300)
+        for f in range(int(total * FPS)):
+            page.evaluate(f"render({f / FPS:.4f})")
+            enc.stdin.write(page.screenshot(type="jpeg", quality=90))
+        br.close()
+    enc.stdin.close()
+    if enc.wait() != 0:
+        raise RuntimeError("encodage vidéo en échec")
+
+
 def render(job, out):
     tmp = Path(tempfile.mkdtemp())
     slides = []
@@ -183,11 +300,22 @@ def render(job, out):
         slides.append(p)
     n = len(slides)
 
-    phrases = job.get("phrases") or narration(job["caption"], slides)
-    (tmp / "narration.txt").write_text("\n".join(phrases), encoding="utf-8")
+    plan = job.get("plan") or analyse(job["caption"], slides)
+    scenes, ent = plan["scenes"], plan.get("entite") or {}
+    photo = None
+    if ent.get("type", "aucune") != "aucune":
+        photo = wiki_photo(ent.get("wikipedia"), ent.get("nom"))
+        if photo:
+            photo.update({"nom": ent.get("nom", ""), "credit": "Photo : Wikimedia Commons"})
+    for s in scenes[1:-1]:
+        w = s.get("entite_wikipedia", "")
+        if w and w != ent.get("wikipedia"):
+            s["photo"] = wiki_photo(w)
+    (tmp / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    phrases = [s["phrase"] for s in scenes]
     raw = tmp / "voice_raw.wav"
     tts("\n\n".join(phrases), raw)
-    # Voix accélérée, silences de début et de fin retirés
     voice = tmp / "voice.wav"
     run(["-y", "-i", str(raw), "-af", f"atempo={SPEED},silenceremove=start_periods=1:start_threshold=-45dB,"
          "areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse", "-ar", "48000", str(voice)])
@@ -195,55 +323,32 @@ def render(job, out):
     cuts = [LEAD + c for c in boundaries(phrases, voice, dur_voice)]
     total = LEAD + dur_voice + TAIL
 
-    # Durée de chaque image : chaque transition est centrée sur le début de la phrase suivante
-    edges = [0.0] + cuts + [total]
-    durs = [edges[i + 1] - edges[i] + FADE for i in range(n)]
-    durs[0] -= FADE / 2
-    durs[-1] -= FADE / 2
-
-    inputs, filters = [], []
-    for i, (p, d) in enumerate(zip(slides, durs)):
-        inputs += ["-loop", "1", "-t", f"{d:.3f}", "-i", str(p)]
-        frames = max(1, int(d * FPS) + 2)
-        # Effet « punch » : la slide arrive zoomée à 112 % et se pose en 0,3 s, puis avance lentement
-        z = f"if(lt(on,9),1.12-0.12*sin(PI/2*on/9),1.0+0.05*(on-9)/{frames})"
-        filters.append(
-            f"[{i}:v]scale=1080:1350,setsar=1,"
-            f"drawbox=x=830:y=1212:w=200:h=72:color=white:t=fill,"
-            f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=1080x1350:fps={FPS},"
-            f"pad={W}:{H}:0:(oh-ih)/2:color=white,trim=duration={d:.3f},format=yuv420p[v{i}]")
-    chain = "[v0]"
-    for i in range(1, n):
-        tr = TRANSITIONS[(i - 1) % len(TRANSITIONS)]
-        filters.append(f"{chain}[v{i}]xfade=transition={tr}:duration={FADE}:offset={cuts[i - 1] - FADE / 2:.3f}[x{i}]")
-        chain = f"[x{i}]"
-    filters.append(f"color=c=0x0038B8:s={W}x14:r={FPS}:d={total:.3f}[bar]")
-    filters.append(f"{chain}[bar]overlay=x='-W+W*t/{total:.3f}':y=150:shortest=1[vout]")
+    video = tmp / "video.mp4"
+    frames_to_video(scenes, photo, cuts, total, video)
 
     # Son : voix + fond musical qui s'efface sous la voix + whoosh à chaque transition
     music = Path(__file__).with_name("music.mp3")
     if not music.exists():
         music = tmp / "beat.wav"
         make_beat(music, total)
-    ia, im = n, n + 1
     lead_ms = int(LEAD * 1000)
-    filters.append(f"[{ia}:a]adelay={lead_ms}|{lead_ms},apad,atrim=0:{total:.3f},asplit=2[voice][key]")
-    filters.append(f"[{im}:a]aloop=loop=-1:size=2000000000,atrim=0:{total:.3f},volume={MUSIC_VOL},"
-                   f"afade=t=out:st={total - 1.0:.3f}:d=1.0[bed]")
-    filters.append("[bed][key]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=350[duck]")
+    filters = [f"[1:a]adelay={lead_ms}|{lead_ms},apad,atrim=0:{total:.3f},asplit=2[voice][key]",
+               f"[2:a]aloop=loop=-1:size=2000000000,atrim=0:{total:.3f},volume={MUSIC_VOL},"
+               f"afade=t=out:st={total - 1.0:.3f}:d=1.0[bed]",
+               "[bed][key]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=350[duck]"]
     mix = ["[voice]", "[duck]"]
     for j, c in enumerate(cuts):
-        ms = int(max(0, c - 0.22) * 1000)
-        filters.append(f"anoisesrc=d=0.45:c=pink:r=48000:a=0.6,highpass=f=500,lowpass=f=6000,"
-                       f"afade=t=in:d=0.22:curve=exp,afade=t=out:st=0.22:d=0.23,volume=0.22,adelay={ms}[w{j}]")
+        ms = int(max(0, c - 0.25) * 1000)
+        filters.append(f"anoisesrc=d=0.5:c=pink:r=48000:a=0.6,highpass=f=400,lowpass=f=7000,"
+                       f"afade=t=in:d=0.25:curve=exp,afade=t=out:st=0.25:d=0.25,volume=0.3,adelay={ms}[w{j}]")
         mix.append(f"[w{j}]")
     filters.append("".join(mix) + f"amix=inputs={len(mix)}:normalize=0:duration=first,"
                    f"atrim=0:{total:.3f},loudnorm=I=-14:TP=-1.5,aformat=channel_layouts=stereo[a]")
-    run(["-y", *inputs, "-i", str(voice), "-i", str(music), "-filter_complex", ";".join(filters),
-         "-map", "[vout]", "-map", "[a]", "-r", str(FPS), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-         "-pix_fmt", "yuv420p", "-profile:v", "high", "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
+    run(["-y", "-i", str(video), "-i", str(voice), "-i", str(music), "-filter_complex", ";".join(filters),
+         "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
          "-movflags", "+faststart", "-t", f"{total:.3f}", str(out)])
-    return {"duree": round(total, 1), "slides": n, "coupes": [round(c, 2) for c in cuts], "phrases": phrases}
+    return {"duree": round(total, 1), "scenes": n, "coupes": [round(c, 2) for c in cuts],
+            "entite": ent, "photo": photo and photo.get("page"), "phrases": phrases, "plan": str(tmp / "plan.json")}
 
 
 if __name__ == "__main__":

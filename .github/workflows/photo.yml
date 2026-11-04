@@ -1,0 +1,29 @@
+name: Photo envoyée au bot Bizhakesef
+
+# Déclenché par le scénario Make (repository_dispatch, type « fetch_photo »)
+on:
+  repository_dispatch:
+    types: [fetch_photo]
+
+jobs:
+  photo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      MAKE_HOOK_URL: ${{ secrets.MAKE_HOOK_URL }}
+      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Préparer la commande
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: printf '%s' "$PAYLOAD" > job.json
+      - name: Récupérer la photo et prévenir Make
+        run: python fetch_photo.py job.json
+      - name: Signaler un échec
+        if: failure()
+        run: python -c "from notify import tell_make; tell_make('PHOTOERR|x|La récupération de la photo a échoué (GitHub Actions, run ${{ github.run_id }}). Vérifie le secret TELEGRAM_BOT_TOKEN.')"

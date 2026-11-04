@@ -1,0 +1,64 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1350px; background: #FFFFFF; }
+
+/* Charte claire inspirée du drapeau d'Israël : blanc et bleu #0038B8 */
+.slide {
+  --blue: #0038B8; --ink: #0B1B3F; --muted: #5B6B8C; --line: rgba(0, 56, 184, .12);
+  --accent: var(--blue); --soft: #EEF3FF;
+  position: relative; width: 1080px; height: 1350px; overflow: hidden;
+  background: #FFFFFF; color: var(--ink); font-family: 'Inter', sans-serif;
+  display: flex; flex-direction: column; padding: 112px 84px 104px;
+}
+/* La tendance ne change que la couleur du chiffre clé ; la charte reste bleue */
+.tend-hausse { --accent: #0A8F55; --soft: #E7F7EF; }
+.tend-baisse { --accent: #D62839; --soft: #FDECEE; }
+
+/* Les deux bandes bleues du drapeau, en haut et en bas */
+.slide::before, .slide::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 30px; background: var(--blue);
+}
+.slide::before { top: 34px; }
+.slide::after { bottom: 34px; }
+
+/* Étoile de David en filigrane */
+.grid {
+  position: absolute; width: 760px; height: 760px; right: -230px; top: 300px; pointer-events: none;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='none' stroke='%230038B8' stroke-width='4' stroke-linejoin='miter'><polygon points='50,8 86.4,71 13.6,71'/><polygon points='50,92 13.6,29 86.4,29'/></g></svg>") center / contain no-repeat;
+  opacity: .045;
+}
+.glow { display: none; }
+
+.top, .bottom, .body { position: relative; z-index: 1; }
+.top { display: flex; justify-content: space-between; align-items: center; }
+.brand { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 34px; letter-spacing: .14em; display: flex; align-items: center; gap: 16px; color: var(--blue); }
+.mark { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 14px; background: var(--blue); color: #FFFFFF; font-size: 32px; letter-spacing: 0; }
+.count { font-size: 28px; font-weight: 600; color: var(--blue); background: #EEF3FF; border-radius: 99px; padding: 8px 22px; }
+
+.body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 36px; padding: 40px 0; }
+.kicker { align-self: flex-start; font-size: 28px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: #FFFFFF; background: var(--blue); border-radius: 99px; padding: 12px 28px; }
+.chiffre { align-self: flex-start; font-family: 'Archivo', sans-serif; font-weight: 900; line-height: .92; letter-spacing: -.03em;
+  color: var(--accent); background: var(--soft); border-radius: 28px; padding: 22px 34px 26px; }
+.titre { font-family: 'Archivo', sans-serif; font-weight: 800; line-height: 1.04; letter-spacing: -.02em; color: var(--ink); }
+.texte { line-height: 1.32; font-weight: 500; color: #33415F; }
+.follow { display: none; align-self: flex-start; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 38px;
+  background: var(--blue); color: #FFFFFF; border-radius: 18px; padding: 24px 40px; }
+.kicker:empty, .chiffre:empty, .titre:empty, .texte:empty, .source:empty, .date:empty { display: none; }
+/* Slide « À RETENIR » : texte un peu plus présent */
+.t-point .kicker + .chiffre:empty + .titre:empty + .texte { font-weight: 600; color: var(--ink); }
+
+/* Couverture : titre dominant avec un filet bleu */
+.t-cover .body { justify-content: flex-end; padding-bottom: 60px; }
+.t-cover .titre { border-left: 12px solid var(--blue); padding-left: 36px; }
+/* Slide finale */
+.t-cta .follow { display: block; }
+.t-cta .swipe { visibility: hidden; }
+
+.bottom { display: flex; justify-content: space-between; align-items: center; border-top: 2px solid var(--line); padding-top: 28px; }
+.source { font-size: 26px; color: var(--muted); }
+.source::before { content: "Source : "; }
+.meta { font-size: 26px; color: var(--muted); }
+.date:not(:empty)::before { content: "  ·  "; white-space: pre; }
+.date { font-size: 26px; color: var(--muted); }
+.swipe { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 30px; color: var(--blue); }
+.swipe span { display: inline-block; margin-left: 8px; }

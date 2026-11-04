@@ -299,31 +299,48 @@ def fetch(url, dest):
         Path(dest).write_bytes(r.read())
 
 
-def frames_to_video(scenes, photo, cuts, total, out_video):
-    """Filme reel.html image par image (rendu déterministe : render(t) fixe l'état exact de chaque image)."""
+def _film_chunk(args):
+    """Filme les images [debut, fin) de la page dans un morceau de vidéo (exécuté en parallèle)."""
+    page_file, debut, fin, out_part = args
     from playwright.sync_api import sync_playwright
-    html = Path(__file__).with_name("reel.html").read_text(encoding="utf-8")
-    data = {"scenes": scenes, "photo": photo, "cuts": cuts, "total": total}
-    page_file = Path(out_video).with_suffix(".html")
-    page_file.write_text(html.replace("/*DATA*/null/*END*/", json.dumps(data, ensure_ascii=False)), encoding="utf-8")
     enc = subprocess.Popen([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-f", "image2pipe", "-framerate", str(FPS),
-                            "-c:v", "mjpeg", "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "19",
-                            "-pix_fmt", "yuv420p", "-profile:v", "high", "-r", str(FPS), str(out_video)],
+                            "-c:v", "mjpeg", "-i", "-", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+                            "-pix_fmt", "yuv420p", "-profile:v", "high", "-r", str(FPS), str(out_part)],
                            stdin=subprocess.PIPE)
     with sync_playwright() as pw:
         kw = {"channel": os.environ["PW_CHANNEL"]} if os.environ.get("PW_CHANNEL") else {}
         br = pw.chromium.launch(**kw)
         page = br.new_page(viewport={"width": W, "height": H}, device_scale_factor=1)
-        page.goto(page_file.resolve().as_uri())
+        page.goto(Path(page_file).resolve().as_uri())
         page.evaluate("window.READY")
         page.wait_for_timeout(300)
-        for f in range(int(total * FPS)):
+        for f in range(debut, fin):
             page.evaluate(f"render({f / FPS:.4f})")
             enc.stdin.write(page.screenshot(type="jpeg", quality=90))
         br.close()
     enc.stdin.close()
     if enc.wait() != 0:
         raise RuntimeError("encodage vidéo en échec")
+    return out_part
+
+
+def frames_to_video(scenes, photo, cuts, total, out_video):
+    """Filme reel.html image par image (rendu déterministe : render(t) fixe l'état exact de chaque image).
+    Les images sont réparties entre plusieurs navigateurs en parallèle, puis les morceaux sont recollés."""
+    from concurrent.futures import ProcessPoolExecutor
+    html = Path(__file__).with_name("reel.html").read_text(encoding="utf-8")
+    data = {"scenes": scenes, "photo": photo, "cuts": cuts, "total": total}
+    page_file = Path(out_video).with_suffix(".html")
+    page_file.write_text(html.replace("/*DATA*/null/*END*/", json.dumps(data, ensure_ascii=False)), encoding="utf-8")
+    nframes = int(total * FPS)
+    k = max(1, min(int(os.environ.get("REEL_WORKERS", os.cpu_count() or 2)), 4))
+    bounds = [round(i * nframes / k) for i in range(k + 1)]
+    parts = [(str(page_file), bounds[i], bounds[i + 1], str(Path(out_video).with_name(f"part{i}.mp4"))) for i in range(k)]
+    with ProcessPoolExecutor(max_workers=k) as ex:
+        done = list(ex.map(_film_chunk, parts))
+    lst = Path(out_video).with_name("parts.txt")
+    lst.write_text("".join(f"file '{Path(p).resolve().as_posix()}'\n" for p in done), encoding="utf-8")
+    run(["-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out_video)])
 
 
 def render(job, out):

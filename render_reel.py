@@ -66,6 +66,28 @@ def gemini(model, body):
         return json.load(r)
 
 
+def mistral(body):
+    """Dernier recours hors Google : la requête Gemini est traduite pour Mistral, et la réponse remise au format Gemini."""
+    content = []
+    for p in body["contents"][0]["parts"]:
+        if "text" in p:
+            content.append({"type": "text", "text": p["text"]})
+        elif "inlineData" in p:
+            content.append({"type": "image_url", "image_url": f"data:{p['inlineData']['mimeType']};base64,{p['inlineData']['data']}"})
+    gc = body.get("generationConfig", {})
+    req = {"model": "mistral-medium-latest", "temperature": 0.3, "messages": [{"role": "user", "content": content}]}
+    if gc.get("responseJsonSchema"):
+        req["response_format"] = {"type": "json_object"}
+        content.append({"type": "text", "text": "Réponds uniquement par un objet JSON conforme à ce schéma JSON :\n"
+                        + json.dumps(gc["responseJsonSchema"], ensure_ascii=False)})
+    r = urllib.request.Request("https://api.mistral.ai/v1/chat/completions", data=json.dumps(req).encode(),
+                               headers={"Authorization": "Bearer " + os.environ["MISTRAL_API_KEY"].strip(),
+                                        "Content-Type": "application/json"})
+    with urllib.request.urlopen(r, timeout=180) as resp:
+        txt = json.load(resp)["choices"][0]["message"]["content"]
+    return {"candidates": [{"content": {"parts": [{"text": txt}]}}]}
+
+
 def first_ok(models, body):
     import time
     last = None
@@ -74,6 +96,13 @@ def first_ok(models, body):
             try:
                 return gemini(m, body)
             except Exception as e:  # 503 / 429 fréquents sur l'offre gratuite : on alterne et on patiente
+                last = e
+        # Texte (pas la voix) : Mistral prend le relais si Gemini est saturé
+        is_text = "AUDIO" not in body.get("generationConfig", {}).get("responseModalities", [])
+        if is_text and os.environ.get("MISTRAL_API_KEY"):
+            try:
+                return mistral(body)
+            except Exception as e:
                 last = e
         time.sleep(5 * (attempt + 1))
     raise RuntimeError(f"Gemini indisponible : {last}")

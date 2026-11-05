@@ -395,6 +395,12 @@ def render(job, out):
     step("slides téléchargées")
     plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
     step("analyse Gemini terminée")
+    fs = job.get("scene_maj")  # actualisation : la scène 2 affiche et dit le cours en direct, quoi que l'IA ait proposé
+    if fs and len(plan["scenes"]) > 2:
+        s1 = plan["scenes"][1]
+        s1.update({"chiffre": fs["chiffre"], "kicker": fs["kicker"], "entite_wikipedia": ""})
+        if fs["mots"] not in s1.get("phrase", "").lower():
+            s1.update({"phrase": fs["phrase"], "titre": fs["titre"]})
     scenes, ent = plan["scenes"], plan.get("entite") or {}
     phrases = [s["phrase"] for s in scenes]
 

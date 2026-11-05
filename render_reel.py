@@ -108,8 +108,11 @@ def first_ok(models, body):
     raise RuntimeError(f"Gemini indisponible : {last}")
 
 
-def analyse(caption, slides):
-    parts = [{"text": PROMPT.replace("{N}", str(len(slides))) + caption}]
+def analyse(caption, slides, maj=""):
+    prompt = PROMPT.replace("{N}", str(len(slides)))
+    if maj:  # actualisation de dernière minute (cours en direct) : seule exception à la règle des chiffres des slides
+        prompt = prompt.replace("LÉGENDE :", "MISE À JOUR PRIORITAIRE, qui l'emporte sur les slides : " + maj + "\n\nLÉGENDE :")
+    parts = [{"text": prompt + caption}]
     for p in slides:
         data = Path(p).read_bytes()
         parts.append({"inlineData": {"mimeType": "image/png" if data[:4] == b"\x89PNG" else "image/jpeg",
@@ -390,7 +393,7 @@ def render(job, out):
     t0 = time.time()
     step = lambda name: print(f"[{time.time() - t0:5.1f} s] {name}", file=sys.stderr, flush=True)
     step("slides téléchargées")
-    plan = job.get("plan") or analyse(job["caption"], slides)
+    plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
     step("analyse Gemini terminée")
     scenes, ent = plan["scenes"], plan.get("entite") or {}
     phrases = [s["phrase"] for s in scenes]

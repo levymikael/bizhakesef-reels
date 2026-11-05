@@ -40,6 +40,32 @@ def quote(symbol):
     return meta["regularMarketPrice"], meta["regularMarketTime"]
 
 
+UNITS = "zéro un deux trois quatre cinq six sept huit neuf dix onze douze treize quatorze quinze seize dix-sept dix-huit dix-neuf".split()
+TENS = {2: "vingt", 3: "trente", 4: "quarante", 5: "cinquante", 6: "soixante", 8: "quatre-vingt"}
+
+
+def words(n):
+    """Nombre entier de 0 à 999 en toutes lettres (français de France)."""
+    if n < 20:
+        return UNITS[n]
+    if n < 100:
+        t, u = divmod(n, 10)
+        if t in (7, 9):
+            return TENS[t - 1] + ("-et-" if t == 7 and u == 1 else "-") + UNITS[10 + u]
+        base = TENS[t] + ("s" if t == 8 and u == 0 else "")
+        return base if u == 0 else base + ("-et-" if u == 1 and t != 8 else "-") + UNITS[u]
+    h, r = divmod(n, 100)
+    head = ("cent" if h == 1 else UNITS[h] + " cent" + ("s" if r == 0 else ""))
+    return head if r == 0 else head + " " + words(r)
+
+
+def spoken(x):
+    """3.203 -> « trois virgule deux cent trois » (comme le dit un présentateur)."""
+    ent, dec = f"{x:.3f}".split(".")
+    d = dec.rstrip("0") or "0"
+    return f"{words(int(ent))} virgule " + ("zéro " * (len(d) - len(d.lstrip("0")))) + words(int(d))
+
+
 def fr(x):
     return f"{x:.3f}".replace(".", ",")
 
@@ -65,6 +91,13 @@ def main(job_path):
     job["maj"] = (f"cours en direct relevés {quand} (heure d'Israël) : " + cours.replace("\n", " ; ")
                   + ". Affiche et dis ces cours-là à la place des cours actuels des slides. Les faits passés des slides "
                   "restent valables mais se disent au passé, datés (« mardi »). N'invente aucune nouvelle comparaison.")
+    usd = quotes["1 $"][0]
+    jour = f"ce {JOURS[t.weekday()]}"
+    job["scene_maj"] = {"chiffre": f"{fr(usd)} ₪", "kicker": f"COURS À {t.hour} H {t.minute:02d}", "mots": spoken(usd),
+                        "titre": f"Le dollar à {fr(usd)} ₪ {jour}",
+                        "phrase": f"{jour.capitalize()}, le dollar s'échange à {spoken(usd)} shekels."}
+    job["maj"] += (f" La scène 2 annonce le cours en direct du dollar : chiffre « {fr(usd)} ₪ », et sa phrase dit "
+                   f"« {spoken(usd)} shekels » ; le creux passé de l'article peut figurer dans son texte.")
     R.render(job, "reel.mp4")
     url = upload_video("reel.mp4", f"reel-{i}-maj{int(time.time())}")
     b64 = lambda s: base64.b64encode(s.encode()).decode()

@@ -36,7 +36,7 @@ Les {N} images jointes sont les slides du carrousel, dans l'ordre. Le reel aura 
 Pour chaque scène :
 - `phrase` : la phrase de voix off lue pendant la scène, 6 à 12 mots (limite stricte : le reel entier doit durer moins de 25 secondes), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
 - `kicker` : sur-titre de 1 à 3 mots en majuscules (ex. « RÉSULTATS », « CHIFFRE D'AFFAIRES »).
-- `titre` : le message de la scène, 50 caractères maximum. Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
+- `titre` : le message de la scène, 50 caractères maximum, nombres écrits en chiffres (« 237,8 Md$ », jamais en lettres). Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
 - `texte` : précision utile en 85 caractères maximum, qui apporte un fait de plus (ne répète ni le titre ni le chiffre), ou "". Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).
 - `chiffre` : le chiffre clé tel qu'affiché, court, avec unité et signe (ex. « 670 M$ », « -45 % », « +3,2 % »), ou "".
 - `tendance` : « hausse », « baisse » ou « neutre ».
@@ -44,6 +44,7 @@ Pour chaque scène :
 La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
 
 `entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.
+`recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Exemples : « El Al Boeing 787 | El Al airplane », « Bank of Israel building | Bank of Israel », « new israeli shekel | shekel coins | Israel currency », « Tel Aviv construction cranes | Tel Aviv skyline ».
 
 Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affiché, doit être exactement celui de la slide (si la slide affiche 670 M$, la voix dit « six cent soixante-dix millions de dollars »). Pas d'emoji, pas de hashtag.
 
@@ -53,8 +54,9 @@ SCENE = {"type": "object", "properties": {k: {"type": "string"} for k in
          ("phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia")},
          "required": ["phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia"]}
 SCHEMA = {"type": "object", "required": ["entite", "scenes"], "properties": {
-    "entite": {"type": "object", "required": ["nom", "wikipedia", "type"],
-               "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"}}},
+    "entite": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo"],
+               "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"},
+                              "recherche_photo": {"type": "string"}}},
     "scenes": {"type": "array", "items": SCENE}}}
 
 
@@ -241,6 +243,140 @@ def wiki_photo(title, nom="", contexte=""):
     return None
 
 
+# --- Photo de couverture : plusieurs sources libres, puis Gemini choisit la meilleure en une fois ---
+PICK_SCHEMA = {"type": "object", "required": ["choix", "raison"],
+               "properties": {"choix": {"type": "integer"}, "raison": {"type": "string"}}}
+
+
+def _get_json(url, headers=None):
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers or UA), timeout=30) as r:
+        return json.load(r)
+
+
+def _wiki_cands(title, nom):
+    out = []
+    for lang in ("en", "fr"):
+        base = f"https://{lang}.wikipedia.org/w/api.php?"
+        img = dict(action="query", prop="pageimages|description", piprop="thumbnail", pithumbsize=1000, redirects=1,
+                   format="json", formatversion=2)
+        titles = [title or nom] if lang == "en" else []
+        titles += [h["title"] for h in _get_json(base + urllib.parse.urlencode(
+            {"action": "query", "list": "search", "srsearch": nom or title, "srlimit": 2, "format": "json",
+             "formatversion": 2}))["query"]["search"]]
+        for t in dict.fromkeys(x for x in titles if x):
+            pg = _get_json(base + urllib.parse.urlencode({**img, "titles": t}))["query"]["pages"][0]
+            if pg.get("thumbnail"):
+                out.append({"url": pg["thumbnail"]["source"], "credit": "Photo : Wikimedia Commons",
+                            "label": f"image de la page Wikipédia « {pg.get('title')} » ({pg.get('description', '')})"})
+    return out
+
+
+def _commons_cands(q, n=6):
+    d = _get_json("https://commons.wikimedia.org/w/api.php?" + urllib.parse.urlencode({
+        "action": "query", "generator": "search", "gsrnamespace": 6, "gsrsearch": f"{q} filetype:bitmap", "gsrlimit": n,
+        "prop": "imageinfo", "iiprop": "url|size|mime", "iiurlwidth": 1000, "format": "json", "formatversion": 2}))
+    out = []
+    for pg in d.get("query", {}).get("pages", []):
+        i = (pg.get("imageinfo") or [{}])[0]
+        if i.get("mime") == "image/jpeg" and i.get("width", 0) >= 700 and i.get("thumburl"):
+            out.append({"url": i["thumburl"], "credit": "Photo : Wikimedia Commons", "label": pg["title"][5:-4]})
+    return out
+
+
+def _openverse_cands(q, n=6):
+    d = _get_json("https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
+        {"q": q, "page_size": 12, "license_type": "commercial", "mature": "false"}))
+    out, seen = [], set()
+    for r in d.get("results", []):
+        key = (r.get("creator"), (r.get("title") or "")[:25])
+        if (r.get("width") or 0) < 700 or key in seen:
+            continue
+        seen.add(key)
+        src = (r.get("source") or "").replace("flickr", "Flickr")
+        out.append({"url": r["url"], "label": r.get("title") or "",
+                    "credit": f"Photo : {r.get('creator') or src} / {src}, CC {r.get('license', '').upper()}"})
+        if len(out) >= n:
+            break
+    return out
+
+
+def _pexels_cands(q, n=5):
+    k = os.environ.get("PEXELS_API_KEY")
+    if not k:
+        return []
+    d = _get_json("https://api.pexels.com/v1/search?" + urllib.parse.urlencode({"query": q, "per_page": n}),
+                  {**UA, "Authorization": k})
+    return [{"url": p["src"]["large"], "label": p.get("alt") or "", "credit": f"Photo : {p.get('photographer')} / Pexels"}
+            for p in d.get("photos", [])]
+
+
+def cover_photo(ent, contexte):
+    """Réunit une douzaine de photos candidates (Wikipédia, Wikimedia Commons, Openverse/Flickr, Pexels si clé)
+    et fait choisir par Gemini la plus juste et la plus belle ; aucune si rien ne convient."""
+    from concurrent.futures import ThreadPoolExecutor
+    nom, q = ent.get("nom", ""), ent.get("recherche_photo") or ent.get("nom", "")
+    if not (nom or q):
+        return None
+    qs = [x.strip() for x in q.split("|") if x.strip()][:3]
+    jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if ent.get("wikipedia") or ent.get("type", "aucune") != "aucune" else []]
+    for x in qs:
+        jobs += [lambda x=x: _commons_cands(x, 5), lambda x=x: _openverse_cands(x, 4), lambda x=x: _pexels_cands(x, 3)]
+    cands = []
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for fut in [ex.submit(j) for j in jobs]:
+            try:
+                cands += fut.result()
+            except Exception as e:
+                print("photo : source indisponible :", e, file=sys.stderr)
+    cands = list({c["url"]: c for c in cands}.values())[:16]
+
+    def dl(c):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(c["url"], headers=UA), timeout=40) as r:
+                data = r.read()
+            if len(data) > 12000 and (data[:3] == b"\xff\xd8\xff" or data[:4] == b"\x89PNG"):
+                return {**c, "data": data, "mime": "image/png" if data[:4] == b"\x89PNG" else "image/jpeg"}
+        except Exception as e:
+            print("photo : téléchargement impossible :", c["url"][:80], e, file=sys.stderr)
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        cands = [c for c in ex.map(dl, cands) if c]
+    if not cands:
+        PHOTO_LOG.append({"nom": nom, "recherche": q, "candidats": [], "choix": -1, "raison": "aucune image trouvée"})
+        return None
+
+    parts = [{"text": (
+        "Choisis la photo de couverture d'un reel d'actualité économique israélienne. Elle s'affiche dans un grand cercle.\n"
+        f"Sujet : « {nom} » (type : {ent.get('type', '')}). Extrait de l'article : {contexte[:900]}\n\n"
+        "Critères, dans l'ordre :\n"
+        "1. Exactitude : l'image montre vraiment le sujet (la personne elle-même, un avion, un produit, le siège ou le logo de "
+        "cette société, le bâtiment de cette institution) ou, pour un sujet général, une scène qui l'illustre directement "
+        "(billets de shekel pour le shekel, grues et immeubles pour l'immobilier). Jamais un homonyme, un autre pays, une "
+        "autre entreprise ni un sujet voisin.\n"
+        "2. Qualité : vraie photographie nette et bien éclairée, sujet lisible une fois recadré en cercle. Pas de texte "
+        "dominant, de capture d'écran, de schéma, de carte, de filigrane ni de photo de groupe confuse. Un logo seulement s'il "
+        "est propre et lisible et qu'aucune bonne photo ne convient.\n"
+        "3. Attrait : une image vivante et actuelle plutôt qu'une façade terne ou une vieille photo floue.\n"
+        f"Les {len(cands)} images suivent, numérotées de 0 à {len(cands) - 1}. Réponds par le numéro choisi, ou -1 si "
+        "aucune n'est satisfaisante.")}]
+    for i, c in enumerate(cands):
+        parts.append({"text": f"Image {i} — {c['label'][:120]}"})
+        parts.append({"inlineData": {"mimeType": c["mime"], "data": base64.b64encode(c["data"]).decode()}})
+    try:
+        d = first_ok(TEXT_MODELS, {"contents": [{"parts": parts}],
+                                   "generationConfig": {"responseMimeType": "application/json",
+                                                        "responseJsonSchema": PICK_SCHEMA}})
+        out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
+    except Exception as e:
+        out = {"choix": -1, "raison": f"choix impossible : {e}"}
+    i = out.get("choix", -1)
+    PHOTO_LOG.append({"nom": nom, "recherche": q, "candidats": [c["label"][:80] for c in cands], **out})
+    if not isinstance(i, int) or not 0 <= i < len(cands):
+        return None
+    c = cands[i]
+    return {"src": f"data:{c['mime']};base64," + base64.b64encode(c["data"]).decode(),
+            "logo": c["mime"] == "image/png", "page": c["label"][:80], "credit": c["credit"][:70]}
+
+
 def tts(text, out_wav):
     # Pas de consigne dans le texte : le modèle TTS la lirait à voix haute.
     spoken = text.replace("@bizhakesef", "Biz Ha Késef").replace("Bizhakesef", "Biz Ha Késef")
@@ -406,10 +542,9 @@ def render(job, out):
 
     def photos():  # recherche et contre-vérification des photos
         photo = None
-        if ent.get("type", "aucune") != "aucune":
-            photo = wiki_photo(ent.get("wikipedia"), ent.get("nom"), job.get("caption", ""))
-            if photo:
-                photo.update({"nom": ent.get("nom", ""), "credit": "Photo : Wikimedia Commons"})
+        photo = cover_photo(ent, job.get("caption", ""))
+        if photo:
+            photo["nom"] = ent.get("nom", "") if ent.get("type", "aucune") != "aucune" else ""
         for s in scenes[1:-1]:
             w = s.get("entite_wikipedia", "")
             if w and w != ent.get("wikipedia"):

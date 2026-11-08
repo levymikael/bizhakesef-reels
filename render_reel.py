@@ -292,7 +292,7 @@ def _openverse_cands(q, n=6):
         if (r.get("width") or 0) < 700 or key in seen:
             continue
         seen.add(key)
-        src = (r.get("source") or "").replace("flickr", "Flickr")
+        src = {"flickr": "Flickr", "wikimedia": "Wikimedia Commons"}.get(r.get("source") or "", r.get("source") or "")
         out.append({"url": r["url"], "label": r.get("title") or "",
                     "credit": f"Photo : {r.get('creator') or src} / {src}, CC {r.get('license', '').upper()}"})
         if len(out) >= n:

@@ -14,7 +14,7 @@ job.json : {"id": "...", "slides": ["https://.../1.jpg", ...], "caption": "...",
 Variables : GEMINI_API_KEY (obligatoire), FFMPEG (défaut « ffmpeg »), PW_CHANNEL (ex. « msedge » en local).
 Musique : un fichier music.mp3 posé à côté de ce script remplace le fond rythmé synthétisé.
 """
-import base64, json, os, re, subprocess, sys, tempfile, unicodedata, urllib.parse, urllib.request, wave
+import hashlib, base64, json, os, re, subprocess, sys, tempfile, unicodedata, urllib.parse, urllib.request, wave
 from pathlib import Path
 
 FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
@@ -44,7 +44,7 @@ Pour chaque scène :
 La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
 
 `entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.
-`recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Exemples : « El Al Boeing 787 | El Al airplane », « Bank of Israel building | Bank of Israel », « new israeli shekel | shekel coins | Israel currency », « Tel Aviv construction cranes | Tel Aviv skyline ».
+`recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Pour une société ou une institution, commence par son logo ; pour une personne, son nom. Jamais de bâtiment. Exemples : « El Al logo | El Al Boeing 787 », « Bank of Israel logo | Bank of Israel emblem », « Benjamin Netanyahu », « new israeli shekel | shekel coins », « Tel Aviv construction cranes | apartment construction Israel ».
 
 Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affiché, doit être exactement celui de la slide (si la slide affiche 670 M$, la voix dit « six cent soixante-dix millions de dollars »). Pas d'emoji, pas de hashtag.
 
@@ -310,15 +310,37 @@ def _pexels_cands(q, n=5):
             for p in d.get("photos", [])]
 
 
-def cover_photo(ent, contexte):
-    """Réunit une douzaine de photos candidates (Wikipédia, Wikimedia Commons, Openverse/Flickr, Pexels si clé)
-    et fait choisir par Gemini la plus juste et la plus belle ; aucune si rien ne convient."""
+RANK_SCHEMA = {"type": "object", "required": ["classement", "raison"], "properties": {
+    "classement": {"type": "array", "items": {"type": "object", "required": ["image", "logo"],
+                                              "properties": {"image": {"type": "integer"}, "logo": {"type": "boolean"}}}},
+    "raison": {"type": "string"}}}
+
+
+def _logo_cands(nom, n=5):
+    """Logos sur Wikimedia Commons (les SVG sont rendus en PNG par Wikimedia)."""
+    d = _get_json("https://commons.wikimedia.org/w/api.php?" + urllib.parse.urlencode({
+        "action": "query", "generator": "search", "gsrnamespace": 6, "gsrsearch": f"{nom} logo", "gsrlimit": n,
+        "prop": "imageinfo", "iiprop": "url|size|mime", "iiurlwidth": 800, "format": "json", "formatversion": 2}))
+    out = []
+    for pg in d.get("query", {}).get("pages", []):
+        i = (pg.get("imageinfo") or [{}])[0]
+        if i.get("mime") in ("image/svg+xml", "image/png", "image/jpeg") and i.get("thumburl"):
+            out.append({"url": i["thumburl"], "credit": "Logo : Wikimedia Commons", "label": pg["title"][5:]})
+    return out
+
+
+def cover_candidates(ent, contexte, k=4):
+    """Photos candidates pour la couverture, classées par Gemini : le logo pour une société ou une institution,
+    le portrait pour une personne, une image concrète pour un sujet général ; jamais un bâtiment.
+    Renvoie au plus k candidats [{url, credit, label, logo, data, mime}], du meilleur au moins bon."""
     from concurrent.futures import ThreadPoolExecutor
-    nom, q = ent.get("nom", ""), ent.get("recherche_photo") or ent.get("nom", "")
+    nom, q, typ = ent.get("nom", ""), ent.get("recherche_photo") or ent.get("nom", ""), ent.get("type", "aucune")
     if not (nom or q):
-        return None
+        return []
     qs = [x.strip() for x in q.split("|") if x.strip()][:3]
-    jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if ent.get("wikipedia") or ent.get("type", "aucune") != "aucune" else []]
+    jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if ent.get("wikipedia") or typ != "aucune" else []]
+    if typ in ("entreprise", "institution") and nom:
+        jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
     for x in qs:
         jobs += [lambda x=x: _commons_cands(x, 5), lambda x=x: _openverse_cands(x, 4), lambda x=x: _pexels_cands(x, 3)]
     cands = []
@@ -328,53 +350,72 @@ def cover_photo(ent, contexte):
                 cands += fut.result()
             except Exception as e:
                 print("photo : source indisponible :", e, file=sys.stderr)
-    cands = list({c["url"]: c for c in cands}.values())[:16]
+    def fkey(u):  # même fichier Wikimedia en plusieurs tailles = un seul candidat
+        m = re.search(r"upload\.wikimedia\.org/wikipedia/[^/]+/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/]+)", u)
+        return urllib.parse.unquote(m.group(1)).lower() if m else u
+    cands = list({fkey(c["url"]): c for c in reversed(cands)}.values())[::-1][:18]
 
     def dl(c):
         try:
             with urllib.request.urlopen(urllib.request.Request(c["url"], headers=UA), timeout=40) as r:
                 data = r.read()
-            if len(data) > 12000 and (data[:3] == b"\xff\xd8\xff" or data[:4] == b"\x89PNG"):
+            if len(data) > 3000 and (data[:3] == b"\xff\xd8\xff" or data[:4] == b"\x89PNG"):
                 return {**c, "data": data, "mime": "image/png" if data[:4] == b"\x89PNG" else "image/jpeg"}
         except Exception as e:
             print("photo : téléchargement impossible :", c["url"][:80], e, file=sys.stderr)
     with ThreadPoolExecutor(max_workers=6) as ex:
         cands = [c for c in ex.map(dl, cands) if c]
+    cands = list({hashlib.md5(c["data"]).hexdigest(): c for c in reversed(cands)}.values())[::-1]
     if not cands:
-        PHOTO_LOG.append({"nom": nom, "recherche": q, "candidats": [], "choix": -1, "raison": "aucune image trouvée"})
-        return None
+        PHOTO_LOG.append({"nom": nom, "recherche": q, "candidats": [], "raison": "aucune image trouvée"})
+        return []
 
+    voulu = {"entreprise": "le LOGO OFFICIEL ACTUEL de cette société (net, lisible), à défaut son produit phare ou son dirigeant en portrait",
+             "institution": "le LOGO ou l'EMBLÈME officiel de cette institution, à défaut le portrait de son dirigeant",
+             "personne": "un PORTRAIT de cette personne, visage net et bien visible"}.get(
+        typ, "une image concrète et parlante du sujet (billets pour une monnaie, grues pour l'immobilier, avion pour l'aérien)")
     parts = [{"text": (
-        "Choisis la photo de couverture d'un reel d'actualité économique israélienne. Elle s'affiche dans un grand cercle.\n"
-        f"Sujet : « {nom} » (type : {ent.get('type', '')}). Extrait de l'article : {contexte[:900]}\n\n"
-        "Critères, dans l'ordre :\n"
-        "1. Exactitude : l'image montre vraiment le sujet (la personne elle-même, un avion, un produit, le siège ou le logo de "
-        "cette société, le bâtiment de cette institution) ou, pour un sujet général, une scène qui l'illustre directement "
-        "(billets de shekel pour le shekel, grues et immeubles pour l'immobilier). Jamais un homonyme, un autre pays, une "
-        "autre entreprise ni un sujet voisin.\n"
-        "2. Qualité : vraie photographie nette et bien éclairée, sujet lisible une fois recadré en cercle. Pas de texte "
-        "dominant, de capture d'écran, de schéma, de carte, de filigrane ni de photo de groupe confuse. Un logo seulement s'il "
-        "est propre et lisible et qu'aucune bonne photo ne convient.\n"
-        "3. Attrait : une image vivante et actuelle plutôt qu'une façade terne ou une vieille photo floue.\n"
-        f"Les {len(cands)} images suivent, numérotées de 0 à {len(cands) - 1}. Réponds par le numéro choisi, ou -1 si "
-        "aucune n'est satisfaisante.")}]
+        "Classe les meilleures images pour la couverture d'un reel d'actualité économique israélienne (affichée dans un cercle). "
+        "Elle doit attirer l'œil dans le fil Instagram.\n"
+        f"Sujet : « {nom} » (type : {typ}). Extrait de l'article : {contexte[:900]}\n"
+        f"Ce qu'on veut : {voulu}.\n\n"
+        "Règles :\n"
+        "- Exactitude absolue : la bonne entité, jamais un homonyme, une autre entreprise, un autre pays ou un ancien logo "
+        "quand le logo actuel est disponible.\n"
+        "- EXCLUS les bâtiments, façades, sièges et vues de rue : ils n'attirent pas l'œil.\n"
+        "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
+        "accompagnés de longs textes.\n"
+        f"Les {len(cands)} images suivent, numérotées de 0 à {len(cands) - 1}. Donne au plus {k} images, de la meilleure à la "
+        "moins bonne, en indiquant pour chacune si c'est un logo (logo = true). Liste vide si aucune ne convient.")}]
     for i, c in enumerate(cands):
         parts.append({"text": f"Image {i} — {c['label'][:120]}"})
         parts.append({"inlineData": {"mimeType": c["mime"], "data": base64.b64encode(c["data"]).decode()}})
     try:
         d = first_ok(TEXT_MODELS, {"contents": [{"parts": parts}],
                                    "generationConfig": {"responseMimeType": "application/json",
-                                                        "responseJsonSchema": PICK_SCHEMA}})
+                                                        "responseJsonSchema": RANK_SCHEMA}})
         out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
     except Exception as e:
-        out = {"choix": -1, "raison": f"choix impossible : {e}"}
-    i = out.get("choix", -1)
+        out = {"classement": [], "raison": f"classement impossible : {e}"}
     PHOTO_LOG.append({"nom": nom, "recherche": q, "candidats": [c["label"][:80] for c in cands], **out})
-    if not isinstance(i, int) or not 0 <= i < len(cands):
-        return None
-    c = cands[i]
-    return {"src": f"data:{c['mime']};base64," + base64.b64encode(c["data"]).decode(),
-            "logo": c["mime"] == "image/png", "page": c["label"][:80], "credit": c["credit"][:70]}
+    res, seen = [], set()
+    for r in out.get("classement", []):
+        i = r.get("image")
+        if isinstance(i, int) and 0 <= i < len(cands) and i not in seen:
+            seen.add(i)
+            res.append({**cands[i], "logo": bool(r.get("logo")) or cands[i]["mime"] == "image/png"})
+    return res[:k]
+
+
+def photo_dict(c):
+    return {"src": f"data:{c['mime']};base64," + base64.b64encode(c["data"]).decode(), "logo": c.get("logo", False),
+            "page": c.get("label", "")[:80], "credit": c.get("credit", "")[:70]}
+
+
+def cover_photo(ent, contexte):
+    """Choix automatique (sans validation) : le premier du classement."""
+    c = cover_candidates(ent, contexte, 1)
+    return photo_dict(c[0]) if c else None
 
 
 def tts(text, out_wav):
@@ -529,8 +570,21 @@ def render(job, out):
     t0 = time.time()
     step = lambda name: print(f"[{time.time() - t0:5.1f} s] {name}", file=sys.stderr, flush=True)
     step("slides téléchargées")
-    plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
+    import photo_choice as PC
+    saved = PC.load_plan(job["id"]) if job.get("id") and not job.get("plan") else None
+    if job.get("photo") is not None and saved:  # 2e passage : le plan validé est repris tel quel
+        plan = {k: v for k, v in saved.items() if k in ("entite", "scenes")}
+    else:
+        plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
     step("analyse Gemini terminée")
+    if job.get("mode") == "choix":  # 1er passage : l'administrateur choisit la photo sur Telegram
+        cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4)
+        step(f"{len(cands)} photos candidates")
+        if cands:
+            PC.save_plan(job["id"], {**plan, "photo_candidats": [
+                {k: c[k] for k in ("url", "credit", "label", "logo")} for c in cands]})
+            PC.send_choice(job["id"], job.get("titre", ""), cands)
+            return {"choix": len(cands), "verification_photos": PHOTO_LOG}
     fs = job.get("scene_maj")  # actualisation : la scène 2 affiche et dit le cours en direct, quoi que l'IA ait proposé
     if fs and len(plan["scenes"]) > 2:
         s1 = plan["scenes"][1]
@@ -541,8 +595,17 @@ def render(job, out):
     phrases = [s["phrase"] for s in scenes]
 
     def photos():  # recherche et contre-vérification des photos
-        photo = None
-        photo = cover_photo(ent, job.get("caption", ""))
+        photo, choisie = None, (saved or {}).get("photo_choisie", "")
+        if job.get("photo") is not None:  # numéro choisi sur Telegram (0 = sans photo)
+            n, lst = int(job["photo"]), (saved or {}).get("photo_candidats", [])
+            choisie = lst[n - 1] if 1 <= n <= len(lst) else None
+            PC.save_plan(job["id"], {**(saved or plan), "photo_choisie": choisie})
+        if choisie:  # photo validée (y compris lors d'une actualisation de dernière minute)
+            with urllib.request.urlopen(urllib.request.Request(choisie["url"], headers=UA), timeout=40) as r:
+                data = r.read()
+            photo = photo_dict({**choisie, "data": data, "mime": "image/png" if data[:4] == b"\x89PNG" else "image/jpeg"})
+        elif choisie == "":  # aucune validation enregistrée : choix automatique
+            photo = cover_photo(ent, job.get("caption", ""))
         if photo:
             photo["nom"] = ent.get("nom", "") if ent.get("type", "aucune") != "aucune" else ""
         for s in scenes[1:-1]:

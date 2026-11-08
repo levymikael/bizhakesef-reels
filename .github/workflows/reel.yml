@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 20
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
       CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
       CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Installer FFmpeg et Playwright (paquets Python, Chrome est déjà présent sur la machine)
         run: |
-          pip install -q playwright imageio-ffmpeg
+          pip install -q playwright imageio-ffmpeg pillow
           echo "FFMPEG=$(python -c 'import imageio_ffmpeg as i; print(i.get_ffmpeg_exe())')" >> "$GITHUB_ENV"
       - name: Préparer la commande
         env:
@@ -35,8 +35,8 @@ jobs:
         run: printf '%s' "$PAYLOAD" > job.json && python -c "import json;j=json.load(open('job.json'));print(j['id'],len(j['slides']),'slides')"
       - name: Monter le reel
         run: python render_reel.py job.json reel.mp4
-      - name: Envoyer la vidéo et prévenir Telegram
-        run: python notify.py "$JOB_ID" reel.mp4
+      - name: Envoyer la vidéo et prévenir Telegram (sauf si l'on attend le choix de la photo)
+        run: if [ -f reel.mp4 ]; then python notify.py "$JOB_ID" reel.mp4; else echo "Photos envoyées pour validation"; fi
       - name: Signaler un échec
         if: failure()
         run: python notify.py "$JOB_ID" --error "Le montage du reel a échoué (voir GitHub Actions, run ${{ github.run_id }})."

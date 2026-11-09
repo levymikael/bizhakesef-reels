@@ -283,9 +283,9 @@ def _commons_cands(q, n=6):
     return out
 
 
-def _openverse_cands(q, n=6):
+def _openverse_cands(q, n=6, page=1):
     d = _get_json("https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
-        {"q": q, "page_size": 12, "license_type": "commercial", "mature": "false"}))
+        {"q": q, "page_size": 12, "page": page, "license_type": "commercial", "mature": "false"}))
     out, seen = [], set()
     for r in d.get("results", []):
         key = (r.get("creator"), (r.get("title") or "")[:25])
@@ -329,7 +329,7 @@ def _logo_cands(nom, n=5):
     return out
 
 
-def cover_candidates(ent, contexte, k=4):
+def cover_candidates(ent, contexte, k=4, exclure=(), autres=False):
     """Photos candidates pour la couverture, classées par Gemini : le logo pour une société ou une institution,
     le portrait pour une personne, une image concrète pour un sujet général ; jamais un bâtiment.
     Renvoie au plus k candidats [{url, credit, label, logo, data, mime}], du meilleur au moins bon."""
@@ -338,13 +338,18 @@ def cover_candidates(ent, contexte, k=4):
     if not (nom or q):
         return []
     qs = [x.strip() for x in q.split("|") if x.strip()][:3]
+    if autres:  # nouvelle recherche : d'autres angles du même sujet
+        qs += {"entreprise": [f"{nom} CEO", f"{nom} founder", f"{nom} product"],
+               "institution": [f"{nom} governor", f"{nom} emblem"],
+               "personne": [f"{nom} speech", f"{nom} conference"]}.get(typ, ["Israel economy", "Tel Aviv business district"])
     jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if ent.get("wikipedia") or typ != "aucune" else []]
     if typ in ("entreprise", "institution") and nom:
         jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
     for x in qs:
-        jobs += [lambda x=x: _commons_cands(x, 5), lambda x=x: _openverse_cands(x, 4), lambda x=x: _pexels_cands(x, 3)]
+        jobs += [lambda x=x: _commons_cands(x, 8 if autres else 5), lambda x=x: _openverse_cands(x, 4, 2 if autres else 1),
+                 lambda x=x: _pexels_cands(x, 3)]
     cands = []
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    with ThreadPoolExecutor(max_workers=10) as ex:
         for fut in [ex.submit(j) for j in jobs]:
             try:
                 cands += fut.result()
@@ -353,7 +358,8 @@ def cover_candidates(ent, contexte, k=4):
     def fkey(u):  # même fichier Wikimedia en plusieurs tailles = un seul candidat
         m = re.search(r"upload\.wikimedia\.org/wikipedia/[^/]+/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/]+)", u)
         return urllib.parse.unquote(m.group(1)).lower() if m else u
-    cands = list({fkey(c["url"]): c for c in reversed(cands)}.values())[::-1][:18]
+    vus = {fkey(u) for u in exclure}
+    cands = [c for c in list({fkey(c["url"]): c for c in reversed(cands)}.values())[::-1] if fkey(c["url"]) not in vus][:18]
 
     def dl(c):
         try:
@@ -385,6 +391,8 @@ def cover_candidates(ent, contexte, k=4):
         "- EXCLUS les bâtiments, façades, sièges et vues de rue : ils n'attirent pas l'œil.\n"
         "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
         "accompagnés de longs textes.\n"
+        "- Varie les propositions : des images franchement DIFFÉRENTES entre elles (par exemple un logo, un produit, un "
+        "dirigeant, une scène), jamais deux logos ni deux photos presque identiques.\n"
         f"Les {len(cands)} images suivent, numérotées de 0 à {len(cands) - 1}. Donne au plus {k} images, de la meilleure à la "
         "moins bonne, en indiquant pour chacune si c'est un logo (logo = true). Liste vide si aucune ne convient.")}]
     for i, c in enumerate(cands):
@@ -572,19 +580,23 @@ def render(job, out):
     step("slides téléchargées")
     import photo_choice as PC
     saved = PC.load_plan(job["id"]) if job.get("id") and not job.get("plan") else None
-    if job.get("photo") is not None and saved:  # 2e passage : le plan validé est repris tel quel
+    if (job.get("photo") is not None or job.get("autres")) and saved:  # le plan déjà établi est repris tel quel
         plan = {k: v for k, v in saved.items() if k in ("entite", "scenes")}
     else:
         plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
     step("analyse Gemini terminée")
     if job.get("mode") == "choix":  # 1er passage : l'administrateur choisit la photo sur Telegram
-        cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4)
+        vus = (saved or {}).get("photo_vus", []) if job.get("autres") else []
+        cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, bool(job.get("autres")))
         step(f"{len(cands)} photos candidates")
         if cands:
-            PC.save_plan(job["id"], {**plan, "photo_candidats": [
+            PC.save_plan(job["id"], {**plan, "photo_vus": vus + [c["url"] for c in cands], "photo_candidats": [
                 {k: c[k] for k in ("url", "credit", "label", "logo")} for c in cands]})
             PC.send_choice(job["id"], job.get("titre", ""), cands)
             return {"choix": len(cands), "verification_photos": PHOTO_LOG}
+        if job.get("autres"):  # rien de nouveau : on le dit, les boutons précédents restent valables
+            PC.send_text("🤷 Je n'ai pas trouvé d'autres photos convenables. Choisis parmi les précédentes, ou « 🚫 Sans photo ».")
+            return {"choix": 0}
     fs = job.get("scene_maj")  # actualisation : la scène 2 affiche et dit le cours en direct, quoi que l'IA ait proposé
     if fs and len(plan["scenes"]) > 2:
         s1 = plan["scenes"][1]

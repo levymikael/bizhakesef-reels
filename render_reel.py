@@ -137,6 +137,10 @@ def analyse(caption, slides, maj=""):
     while len(sc) < n:
         sc.insert(-1, dict(sc[-2]))
     out["scenes"] = sc
+    if len(sc) > 2 and not sc[0].get("chiffre"):  # accroche : le chiffre le plus fort s'affiche dès la 1re seconde
+        src = next((x for x in sc[1:-1] if x.get("chiffre")), None)
+        if src:
+            sc[0].update(chiffre=src["chiffre"], tendance=src.get("tendance", "neutre"))
     shorten(sc)
     return out
 

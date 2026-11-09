@@ -41,6 +41,11 @@ Pour chaque scène :
 - `chiffre` : le chiffre clé tel qu'affiché, court, avec unité et signe (ex. « 670 M$ », « -45 % », « +3,2 % »), ou "".
 - `tendance` : « hausse », « baisse » ou « neutre ».
 - `entite_wikipedia` : si la scène parle surtout d'une autre société ou personne que l'entité principale, son titre exact sur Wikipédia en anglais ; sinon "".
+La scène 1 est l'accroche, décisive : la plupart des spectateurs décident de rester ou de passer en moins de 3 secondes. Pour elle seule :
+- `chiffre` obligatoire dès que l'information comporte un nombre (montant, pourcentage, prix, record, date) : le plus frappant.
+- `titre` : le fait et sa conséquence concrète, jamais un simple sujet. « Taxe sur les billets d'avion » est interdit ; « Une nouvelle taxe sur chaque billet d'avion » convient.
+- `kicker` : le sujet précis en 1 à 3 mots (« BILLETS D'AVION », « EL AL », « SHEKEL »), jamais une rubrique (« MACRO », « TECH », « ENTREPRISES », « MARCHÉS »).
+- `phrase` : 5 à 9 mots, qui commence directement par le fait ou le chiffre, sans préambule (« Israël envisage », « Selon », « Voici »).
 La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
 
 `entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.

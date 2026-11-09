@@ -44,7 +44,8 @@ Pour chaque scène :
 La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
 
 `entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.
-`recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Pour une société ou une institution, commence par son logo ; pour une personne, son nom. Jamais de bâtiment. Exemples : « El Al logo | El Al Boeing 787 », « Bank of Israel logo | Bank of Israel emblem », « Benjamin Netanyahu », « new israeli shekel | shekel coins », « Tel Aviv construction cranes | apartment construction Israel ».
+`recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Pour une société ou une institution, commence par son logo ; pour une personne, son nom. Jamais de bureaux ni de siège. Exemples : « El Al logo | El Al Boeing 787 », « Bank of Israel logo | Bank of Israel emblem », « Benjamin Netanyahu », « new israeli shekel | shekel coins », « Tel Aviv construction cranes | apartment construction Israel ».
+`theme_photo` : trois requêtes en anglais séparées par « | » pour une image concrète et spectaculaire de l'OBJET de l'information (le secteur, le produit, l'activité touchée), indépendamment de l'entité, ancrée en Israël quand c'est possible (compagnie, lieu ou objet israélien), et précise (« passenger airliner », pas « airplane », qui ramène des avions militaires). Exemples : taxe sur les vols → « El Al Boeing 787 | Ben Gurion airport | passenger airliner takeoff » ; gaz → « offshore gas platform | gas rig Mediterranean » ; immobilier → « construction cranes Tel Aviv | apartment towers construction » ; shekel → « shekel banknotes | shekel coins » ; puces → « semiconductor wafer | computer chip ».
 
 Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affiché, doit être exactement celui de la slide (si la slide affiche 670 M$, la voix dit « six cent soixante-dix millions de dollars »). Pas d'emoji, pas de hashtag.
 
@@ -54,9 +55,9 @@ SCENE = {"type": "object", "properties": {k: {"type": "string"} for k in
          ("phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia")},
          "required": ["phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia"]}
 SCHEMA = {"type": "object", "required": ["entite", "scenes"], "properties": {
-    "entite": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo"],
+    "entite": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo", "theme_photo"],
                "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"},
-                              "recherche_photo": {"type": "string"}}},
+                              "recherche_photo": {"type": "string"}, "theme_photo": {"type": "string"}}},
     "scenes": {"type": "array", "items": SCENE}}}
 
 
@@ -338,6 +339,8 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False):
     if not (nom or q):
         return []
     qs = [x.strip() for x in q.split("|") if x.strip()][:3]
+    theme = [x.strip() for x in (ent.get("theme_photo") or "").split("|") if x.strip()][:3]
+    qs += [x for x in theme if x not in qs]  # toujours une image du secteur touché, en plus du logo ou du portrait
     if autres:  # nouvelle recherche : d'autres angles du même sujet
         qs += {"entreprise": [f"{nom} CEO", f"{nom} founder", f"{nom} product"],
                "institution": [f"{nom} governor", f"{nom} emblem"],
@@ -388,11 +391,19 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False):
         "Règles :\n"
         "- Exactitude absolue : la bonne entité, jamais un homonyme, une autre entreprise, un autre pays ou un ancien logo "
         "quand le logo actuel est disponible.\n"
-        "- EXCLUS les bâtiments, façades, sièges et vues de rue : ils n'attirent pas l'œil.\n"
+        "- EXCLUS les immeubles de bureaux, façades, sièges sociaux et vues de rue : ils n'attirent pas l'œil. "
+        "Un aéroport, un port, une usine, une plateforme ou un chantier EN ACTIVITÉ sont en revanche bienvenus.\n"
+        "- Quand l'information porte sur une mesure (taxe, loi, réforme, taux, régulation) qui touche un secteur, "
+        "l'image du SECTEUR touché (avion pour l'aérien, billets pour la monnaie, grues pour l'immobilier…) passe "
+        "AVANT le logo de l'institution qui décide. Elle doit correspondre exactement : un avion de ligne civil (jamais "
+        "militaire) pour des billets d'avion, de préférence israélien (El Al, Israir, Arkia, Ben Gourion), à défaut un bel "
+        "avion de ligne quelconque ; de même, une image prise en Israël plutôt qu'ailleurs, à défaut une image générique "
+        "réussie du secteur. Mieux vaut une image générique spectaculaire qu'aucune image du secteur.\n"
         "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
         "accompagnés de longs textes.\n"
         "- Varie les propositions : des images franchement DIFFÉRENTES entre elles (par exemple un logo, un produit, un "
-        "dirigeant, une scène), jamais deux logos ni deux photos presque identiques.\n"
+        "dirigeant, une scène), jamais deux logos ni deux photos presque identiques. Inclus au moins une image concrète "
+        "du secteur ou de l'activité quand il y en a une bonne.\n"
         f"Les {len(cands)} images suivent, numérotées de 0 à {len(cands) - 1}. Donne au plus {k} images, de la meilleure à la "
         "moins bonne, en indiquant pour chacune si c'est un logo (logo = true). Liste vide si aucune ne convient.")}]
     for i, c in enumerate(cands):

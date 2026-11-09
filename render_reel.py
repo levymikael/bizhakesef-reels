@@ -330,7 +330,7 @@ def _logo_cands(nom, n=5):
     return out
 
 
-def cover_candidates(ent, contexte, k=4, exclure=(), autres=False):
+def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
     """Photos candidates pour la couverture, classées par Gemini : le logo pour une société ou une institution,
     le portrait pour une personne, une image concrète pour un sujet général ; jamais un bâtiment.
     Renvoie au plus k candidats [{url, credit, label, logo, data, mime}], du meilleur au moins bon."""
@@ -423,6 +423,8 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False):
         if isinstance(i, int) and 0 <= i < len(cands) and i not in seen:
             seen.add(i)
             res.append({**cands[i], "logo": bool(r.get("logo")) or cands[i]["mime"] == "image/png"})
+    if not res and force:  # photo obligatoire : à défaut de mieux, les premières images trouvées, sans classement
+        res = [{**c, "logo": c["mime"] == "image/png"} for c in cands]
     return res[:k]
 
 
@@ -433,7 +435,7 @@ def photo_dict(c):
 
 def cover_photo(ent, contexte):
     """Choix automatique (sans validation) : le premier du classement."""
-    c = cover_candidates(ent, contexte, 1)
+    c = cover_candidates(ent, contexte, 1) or cover_candidates(ent, contexte, 1, autres=True, force=True)
     return photo_dict(c[0]) if c else None
 
 
@@ -599,6 +601,8 @@ def render(job, out):
     if job.get("mode") == "choix":  # 1er passage : l'administrateur choisit la photo sur Telegram
         vus = (saved or {}).get("photo_vus", []) if job.get("autres") else []
         cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, bool(job.get("autres")))
+        if not cands and not job.get("autres"):  # photo obligatoire : recherche élargie, puis sans filtre
+            cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, True, True)
         step(f"{len(cands)} photos candidates")
         if cands:
             PC.save_plan(job["id"], {**plan, "photo_vus": vus + [c["url"] for c in cands], "photo_candidats": [
@@ -606,7 +610,7 @@ def render(job, out):
             PC.send_choice(job["id"], job.get("titre", ""), cands)
             return {"choix": len(cands), "verification_photos": PHOTO_LOG}
         if job.get("autres"):  # rien de nouveau : on le dit, les boutons précédents restent valables
-            PC.send_text("🤷 Je n'ai pas trouvé d'autres photos convenables. Choisis parmi les précédentes, ou « 🚫 Sans photo ».")
+            PC.send_text("🤷 Je n'ai pas trouvé d'autres photos convenables. Choisis parmi les précédentes.")
             return {"choix": 0}
     fs = job.get("scene_maj")  # actualisation : la scène 2 affiche et dit le cours en direct, quoi que l'IA ait proposé
     if fs and len(plan["scenes"]) > 2:

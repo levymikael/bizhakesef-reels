@@ -1,0 +1,28 @@
+name: Le saviez-vous ? Bizhakesef
+
+# Dimanche, mardi et jeudi vers 9 h 30 (heure d'Israël) : une proposition arrive sur Telegram, à valider comme un article.
+on:
+  schedule:
+    - cron: "30 6 * * 0,2,4"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [saviez_vous]
+
+jobs:
+  saviez:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      MAKE_HOOK_URL: ${{ secrets.MAKE_HOOK_URL }}
+      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Choisir un sujet et rédiger le carrousel
+        run: python saviez_vous.py
+      - name: Signaler un échec
+        if: failure()
+        run: python -c "import notify; notify.tell_make('SAVOIRERR|x|Le « Saviez-vous ? » du jour n a pas pu être préparé (GitHub Actions, run ${{ github.run_id }}).')"

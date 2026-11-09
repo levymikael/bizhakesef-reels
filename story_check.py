@@ -29,3 +29,11 @@ else:
         print("Page :", p.get("name"), "| Instagram :", p.get("instagram_business_account"))
     if "erreur" in pages:
         print("Pages :", pages)
+
+# Profil et posts visibles (lecture seule)
+if not T.startswith("IG"):
+    p = get(f"https://graph.facebook.com/v24.0/{IG_ID}", fields="username,name,biography,website,followers_count,media_count")
+    print("PROFIL", json.dumps(p, ensure_ascii=False))
+    m = get(f"https://graph.facebook.com/v24.0/{IG_ID}/media", fields="timestamp,media_product_type,caption", limit=60)
+    for x in m.get("data", []):
+        print("POST", x.get("timestamp", "")[:10], x.get("media_product_type"), (x.get("caption") or "").split("\n")[0][:70])

@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pertinent", "raison_si_non_pertinent", "format_recommande", "categorie", "source_nom", "slides", "caption", "hashtags", "verification"],
+  "properties": {
+    "pertinent": {"type": "boolean"},
+    "raison_si_non_pertinent": {"type": "string"},
+    "format_recommande": {"type": "string", "enum": ["carrousel", "reel"]},
+    "categorie": {"type": "string"},
+    "source_nom": {"type": "string"},
+    "slides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "kicker", "titre", "texte", "chiffre", "tendance"],
+        "properties": {
+          "type": {"type": "string", "enum": ["cover", "point", "cta"]},
+          "kicker": {"type": "string"},
+          "titre": {"type": "string"},
+          "texte": {"type": "string"},
+          "chiffre": {"type": "string"},
+          "tendance": {"type": "string", "enum": ["hausse", "baisse", "neutre"]}
+        }
+      }
+    },
+    "caption": {"type": "string"},
+    "hashtags": {"type": "array", "items": {"type": "string"}},
+    "verification": {"type": "array", "items": {"type": "string"}}
+  }
+}

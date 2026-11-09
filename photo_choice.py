@@ -88,8 +88,7 @@ def send_choice(job_id, titre, cands):
     else:
         _tg("sendMediaGroup", {"chat_id": chat, "media": json.dumps(media)}, files)
     nums = [{"text": f"{i + 1}", "callback_data": f"PH{i + 1}|{job_id}"} for i in range(len(cands))]
-    kb = {"inline_keyboard": [nums, [{"text": "🔁 Autres photos", "callback_data": f"PHX|{job_id}"},
-                                     {"text": "🚫 Sans photo", "callback_data": f"PH0|{job_id}"}]]}
+    kb = {"inline_keyboard": [nums, [{"text": "🔁 Autres photos", "callback_data": f"PHX|{job_id}"}]]}
     _tg("sendMessage", {"chat_id": chat, "reply_markup": json.dumps(kb, ensure_ascii=False),
                         "text": f"📸 Quelle photo en couverture du reel « {titre} » ?\nLe montage démarre dès ton choix (1 à 2 minutes)."})
 

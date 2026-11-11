@@ -94,8 +94,7 @@ def main():
         file = dus[:1] + [t for t in RESERVE if t not in faits]
     for sujet in file:
         titre, out = rediger(sujet, schema)
-        if not force:
-            faits.append(sujet)
+        faits.append(sujet)  # même forcé : un portrait envoyé en avance ne repasse pas à sa date
         if out:
             PC.save_plan(DONE, {"faits": faits})
             url = "https://en.wikipedia.org/wiki/" + urllib.parse.quote(titre.replace(" ", "_"))

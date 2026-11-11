@@ -40,7 +40,7 @@ Règles des faits :
 - Uniquement les faits de l'article ci-dessous. Aucun chiffre, aucune date, aucun nom ajouté de mémoire, même s'ils te semblent exacts.
 - Parcours professionnel et économique : origines utiles à comprendre le parcours, création ou direction d'entreprises, chiffres clés (taille, valorisation, rachat, salariés, fortune si l'article la donne), apports à l'économie israélienne. Pas de vie privée au-delà de ce qui éclaire le parcours, pas de politique sauf si elle fait partie du parcours économique.
 - Si l'article mentionne une affaire judiciaire ou une controverse majeure liée aux affaires, mentionne-la sobrement et factuellement, sans jugement.
-- Tout chiffre est daté (« en 2019 ») si l'article le date. Garde la devise d'origine, montants à la française (670 M$, 1,8 Md$, 6 Md₪, 45 %) ; le shekel s'écrit ₪ ou « shekels », jamais « NIS ». Noms propres translittérés correctement depuis l'hébreu.
+- Tout chiffre est daté (« en 2019 ») si l'article le date. Garde la devise d'origine, montants à la française (670 M$, 1,8 Md$, 6 Md₪, 45 %) ; le shekel s'écrit ₪ ou « shekels », jamais « NIS ». Noms propres translittérés correctement depuis l'hébreu. Les sociétés, marques et lieux s'écrivent sous leur nom officiel en caractères latins, tel qu'il apparaît dans la presse internationale (ישראייר → Israir, קופיקס → Cofix, שופרסל → Shufersal, מחנה יהודה → Mahane Yehuda) : jamais une translittération approximative ou inventée.
 - Si l'article ne contient pas assez de matière sur le parcours économique de la personne, mets `pertinent` à false.
 
 Le carrousel compte exactement 7 slides, chaque slide se comprend seule :

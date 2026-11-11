@@ -43,11 +43,10 @@ Règles des faits :
 - Tout chiffre est daté (« en 2019 ») si l'article le date. Garde la devise d'origine, montants à la française (670 M$, 1,8 Md$, 45 %). Noms propres translittérés correctement depuis l'hébreu.
 - Si l'article ne contient pas assez de matière sur le parcours économique de la personne, mets `pertinent` à false.
 
-Le carrousel, 5 à 7 slides, chaque slide se comprend seule :
-1. Couverture (`type` = "cover") : `kicker` = « PORTRAIT ». `titre` : le nom de la personne et ce qui rend son parcours frappant, 55 caractères maximum, avec un chiffre s'il y en a un marquant (affirmation, pas de question). Autres champs vides.
-2. Étapes du parcours (`type` = "point"), dans l'ordre chronologique : `chiffre` (une date, un montant ou un nombre, 10 caractères maximum, ou vide), `titre` (40 caractères maximum), `texte` (120 caractères maximum), `tendance` ("hausse", "baisse" ou "neutre"), `kicker` vide.
-3. « À RETENIR » (`type` = "point", avant-dernière) : `kicker` = « À RETENIR », `titre` vide, `texte` (150 caractères maximum) : ce que ce parcours dit de l'économie israélienne, à partir de l'article. `chiffre` vide, `tendance` "neutre".
-4. Fin (`type` = "cta") : `titre` = « L'actualité économique d'Israël, en français », `texte` = « Suivez @bizhakesef et partagez ce post à ceux qui suivent l'économie israélienne. ».
+Le carrousel compte exactement 7 slides, chaque slide se comprend seule :
+1. Couverture (`type` = "cover") : elle portera la photo de la personne. `kicker` = « PORTRAIT ». `titre` : le nom de la personne et ce qui rend son parcours frappant, 50 caractères maximum, avec un chiffre s'il y en a un marquant (affirmation, pas de question). Autres champs vides.
+2. à 6. Exactement CINQ faits marquants de sa vie et de sa carrière (`type` = "point"), dans l'ordre chronologique, chacun un moment fort qu'on a envie de raconter (un départ, une création, un exploit, un rachat, un record) : `chiffre` = l'année ou le chiffre clé du moment (10 caractères maximum), `titre` (40 caractères maximum), `texte` (120 caractères maximum), `tendance` ("hausse", "baisse" ou "neutre"), `kicker` vide.
+7. Fin (`type` = "cta") : `titre` = « L'actualité économique d'Israël, en français », `texte` = « Suivez @bizhakesef et partagez ce post à ceux qui suivent l'économie israélienne. ».
 Pas d'emoji dans les slides. Citations entre « ».
 
 La légende (`caption`), 400 à 900 caractères, sans hashtags :
@@ -70,6 +69,25 @@ def wiki_text(sujet):
         pg = json.load(r)["query"]["pages"][0]
     titre = pg.get("title", title)
     return titre, (pg.get("extract") or "")[:14000], f"https://{lang}.wikipedia.org/wiki/" + urllib.parse.quote(titre.replace(" ", "_"))
+
+
+def photo_personne(sujet, titre, url):
+    """Photo de la personne pour la couverture : l'image principale de son article Wikipédia, à défaut une recherche."""
+    lang = url.split("//")[1].split(".")[0]
+    try:
+        u = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode({
+            "action": "query", "prop": "pageimages", "piprop": "thumbnail", "pithumbsize": 1080, "redirects": 1,
+            "titles": titre, "format": "json", "formatversion": 2})
+        with urllib.request.urlopen(urllib.request.Request(u, headers=R.UA), timeout=30) as r:
+            th = (json.load(r)["query"]["pages"][0].get("thumbnail") or {}).get("source")
+        if th:
+            return th
+    except Exception as e:
+        print("photo Wikipédia indisponible :", e)
+    nom = titre if lang == "en" else sujet.split(":", 1)[-1]
+    c = R.cover_candidates({"nom": nom, "wikipedia": titre if lang == "en" else "", "type": "personne",
+                            "recherche_photo": nom, "theme_photo": ""}, "", 1, force=True)
+    return c[0]["url"] if c else ""
 
 
 DONE = "portraits-faits"  # portraits déjà envoyés, enregistrés chez Cloudinary
@@ -108,7 +126,9 @@ def main():
         faits.append(sujet)  # même forcé : un portrait envoyé en avance ne repasse pas à sa date
         if out:
             PC.save_plan(DONE, {"faits": faits})
-            print("Portrait :", titre, "|", out["slides"][0]["titre"])
+            photo = photo_personne(sujet, titre, url)
+            out["slides"][0]["photo"] = photo
+            print("Portrait :", titre, "|", out["slides"][0]["titre"], "| photo :", photo or "aucune")
             tell_make("SAVOIR|" + base64.b64encode(json.dumps(out, ensure_ascii=False).encode()).decode() + "|" + url)
             return
     PC.save_plan(DONE, {"faits": faits})

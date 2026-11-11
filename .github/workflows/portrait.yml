@@ -1,0 +1,32 @@
+name: Portrait Bizhakesef
+
+# Chaque mercredi vers 9 h 30 (heure d Israël) : le portrait programmé arrive sur Telegram, à valider comme un article.
+on:
+  schedule:
+    - cron: "30 6 * * 3"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [portrait]
+
+jobs:
+  portrait:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      MAKE_HOOK_URL: ${{ secrets.MAKE_HOOK_URL }}
+      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+      PORTRAIT: ${{ github.event.client_payload.nom }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rédiger le portrait programmé
+        run: python portrait.py
+      - name: Signaler un échec
+        if: failure()
+        run: python -c "import notify; notify.tell_make('SAVOIRERR|x|Le portrait du jour n a pas pu être préparé (GitHub Actions, run ${{ github.run_id }}).')"

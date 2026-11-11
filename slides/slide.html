@@ -40,9 +40,12 @@
   var fits = Array.prototype.slice.call(document.querySelectorAll('.fit'));
   function overflow() { return body.scrollHeight > body.clientHeight + 1; }
   var isPoint = !!document.querySelector('.t-point');
+  // Couverture avec photo : titre plus compact pour laisser la place au portrait
+  var withPhoto = !!document.querySelector('.photo:not([src=""])');
   fits.forEach(function (el) {
     // Sur une slide « point », le titre reste secondaire face au chiffre
     if (isPoint && el.classList.contains('titre')) { el.dataset.max = 62; el.dataset.min = 44; }
+    if (withPhoto && el.classList.contains('titre')) { el.dataset.max = 74; el.dataset.min = 46; }
     el.style.fontSize = el.dataset.max + 'px';
   });
   for (var step = 0; step < 60 && overflow(); step++) {

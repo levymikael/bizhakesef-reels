@@ -50,6 +50,12 @@ html, body { width: 1080px; height: 1350px; background: #FFFFFF; }
 /* Couverture : titre dominant avec un filet bleu */
 .t-cover .body { justify-content: flex-end; padding-bottom: 60px; }
 .t-cover .titre { border-left: 12px solid var(--blue); padding-left: 36px; }
+/* Couverture avec photo (portraits) : la photo occupe le haut, le titre reste dessous */
+.photo { display: block; flex: 1 1 auto; min-height: 0; width: 100%; object-fit: cover; object-position: center 20%;
+  border-radius: 28px; box-shadow: 0 0 0 6px var(--blue); }
+.t-cover .photo { min-height: 560px; }
+.photo[src=""] { display: none; }
+.t-cover .body:has(.photo:not([src=""])) { justify-content: flex-start; gap: 30px; padding-bottom: 20px; }
 /* Slide finale */
 .t-cta .follow { display: block; }
 .t-cta .swipe { visibility: hidden; }

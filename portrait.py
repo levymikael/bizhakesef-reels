@@ -14,21 +14,21 @@ from notify import tell_make
 import photo_choice as PC
 import urllib.request
 
-# (date du mercredi, titre exact de l'article Wikipédia en anglais, ou « he:titre » pour Wikipédia en hébreu)
+# (mercredi prévu, titre exact de l'article Wikipédia en anglais, ou « he:titre » pour Wikipédia en hébreu). Rami Levy est parti en avance le 11/11.
 PROGRAMME = [
-    ("2026-11-18", "he:רמי לוי"),  # pas d'article en anglais
-    ("2026-11-25", "Omri Casspi"),
-    ("2026-12-02", "Dov Moran"),
-    ("2026-12-09", "Ofra Strauss"),
-    ("2026-12-16", "Gil Shwed"),
-    ("2026-12-23", "Amnon Shashua"),
-    ("2026-12-30", "Yossi Vardi"),
-    ("2027-01-06", "Shari Arison"),
-    ("2027-01-13", "Assaf Rappaport"),
-    ("2027-01-20", "Kira Radinsky"),
-    ("2027-01-27", "Stef Wertheimer"),
-    ("2027-02-03", "Eyal Waldman"),
-    ("2027-02-10", "Avishai Abrahami"),
+    ("2026-11-11", "he:רמי לוי"),  # pas d'article en anglais
+    ("2026-11-18", "Omri Casspi"),
+    ("2026-11-25", "Dov Moran"),
+    ("2026-12-02", "Ofra Strauss"),
+    ("2026-12-09", "Gil Shwed"),
+    ("2026-12-16", "Amnon Shashua"),
+    ("2026-12-23", "Yossi Vardi"),
+    ("2026-12-30", "Shari Arison"),
+    ("2027-01-06", "Assaf Rappaport"),
+    ("2027-01-13", "Kira Radinsky"),
+    ("2027-01-20", "Stef Wertheimer"),
+    ("2027-01-27", "Eyal Waldman"),
+    ("2027-02-03", "Avishai Abrahami"),
 ]
 RESERVE = ["Shlomo Kramer", "Yitzhak Tshuva", "Ziv Aviram"]  # si un article est trop maigre
 
@@ -98,7 +98,7 @@ def main():
     if force:
         file = [force]
     else:
-        dus = [t for d, t in PROGRAMME if d <= today and t not in faits]
+        dus = [t for d, t in PROGRAMME if t not in faits]  # chaque mercredi, le suivant dans l ordre (les dates sont indicatives)
         if not dus:
             print("Aucun portrait programmé aujourd'hui.")
             return

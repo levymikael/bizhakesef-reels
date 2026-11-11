@@ -610,8 +610,25 @@ def frames_to_video(scenes, photo, cuts, total, out_video):
     run(["-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out_video)])
 
 
+PORTRAITS = "portraits-reel"  # {titre de couverture : {"photo": url, "garder": [slides retenues]}}, écrit par portrait.py
+
+
+def portrait_info(titre):
+    """Pour un portrait : la photo déjà trouvée pour la couverture et les slides à garder dans le reel."""
+    try:
+        import photo_choice as PC
+        return (PC.load_plan(PORTRAITS) or {}).get(titre or "")
+    except Exception as e:
+        print("portrait : informations indisponibles :", e, file=sys.stderr)
+        return None
+
+
 def render(job, out):
     tmp = Path(tempfile.mkdtemp())
+    info = portrait_info(job.get("titre"))
+    garder = (info or {}).get("garder") or []
+    if garder and len(job["slides"]) > len(garder):  # reel court : couverture, 4 faits les plus forts, fin
+        job["slides"] = [job["slides"][i] for i in garder if i < len(job["slides"])]
     slides = []
     for i, src in enumerate(job["slides"]):
         p = tmp / f"s{i}.jpg"
@@ -639,6 +656,15 @@ def render(job, out):
         cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, bool(job.get("autres")))
         if not cands and not job.get("autres"):  # photo obligatoire : recherche élargie, puis sans filtre
             cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, True, True)
+        if info and info.get("photo") and not job.get("autres"):  # portrait : la photo de la couverture en 1er choix
+            try:
+                with urllib.request.urlopen(urllib.request.Request(info["photo"], headers=UA), timeout=40) as r:
+                    data = r.read()
+                mime = "image/png" if data[1:4] == b"PNG" else "image/jpeg"
+                cands = [{"url": info["photo"], "credit": "Photo : Wikimedia Commons", "label": "Portrait (Wikipédia)",
+                          "logo": False, "data": data, "mime": mime}] + cands[:3]
+            except Exception as e:
+                print("portrait : photo indisponible :", e, file=sys.stderr)
         step(f"{len(cands)} photos candidates")
         if cands:
             PC.save_plan(job["id"], {**plan, "photo_vus": vus + [c["url"] for c in cands], "photo_candidats": [

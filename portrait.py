@@ -44,7 +44,7 @@ Règles des faits :
 - Si l'article ne contient pas assez de matière sur le parcours économique de la personne, mets `pertinent` à false.
 
 Le carrousel compte exactement 9 slides, chaque slide se comprend seule :
-1. Couverture (`type` = "cover") : elle portera la photo de la personne. `kicker` = « PORTRAIT ». `titre` : le nom de la personne et ce qui rend son parcours frappant, 50 caractères maximum, avec un chiffre s'il y en a un marquant (affirmation, pas de question). Autres champs vides.
+1. Couverture (`type` = "cover") : elle portera la photo de la personne. `kicker` = « PORTRAIT ». `titre` : 50 caractères maximum, le nom de la personne puis son parcours résumé en « avant → après » chiffré, tiré des faits ci-dessous : « Rami Levy : de 38 m² à 6 Md₪ », « Omri Casspi : de la NBA à 100 M$ investis ». Si l'article ne donne pas deux chiffres pour cela, le nom suivi du chiffre le plus frappant (« Gil Shwed : 4 Md$ de chiffre d'affaires »). Jamais un titre sans chiffre ni une formule creuse (« l'homme fort de… »). Autres champs vides.
 2. à 8. Exactement SEPT faits marquants de sa vie et de sa carrière (`type` = "point"), dans l'ordre chronologique, chacun un moment fort qu'on a envie de raconter (un départ, une création, un exploit, un rachat, un record) : `chiffre` (10 caractères maximum) : un MIX de chiffres et de dates clés. Au moins QUATRE des sept faits portent le CHIFFRE marquant du moment (montant d'un rachat ou d'une levée, chiffre d'affaires, fortune, nombre de magasins ou de salariés, part de marché, record), écrit à la française (1,2 Md$, 50 magasins, 6 Md₪, 45 %) ; les autres portent l'année clé de l'étape (1976), au plus TROIS slides avec une année. Quand le chiffre est affiché, l'année va dans `titre` ou `texte` (« En 2021, … »). Le chiffre affiché doit figurer tel quel dans `texte` ou s'en déduire directement. `titre` (40 caractères maximum), `texte` (120 caractères maximum), `tendance` ("hausse", "baisse" ou "neutre"), `kicker` vide.
 9. Fin (`type` = "cta") : `titre` = « L'actualité économique d'Israël, en français », `texte` = « Suivez @bizhakesef et partagez ce post à ceux qui suivent l'économie israélienne. ».
 Pas d'emoji dans les slides. Citations entre « ».
@@ -88,6 +88,23 @@ def photo_personne(sujet, titre, url):
     c = R.cover_candidates({"nom": nom, "wikipedia": titre if lang == "en" else "", "type": "personne",
                             "recherche_photo": nom, "theme_photo": ""}, "", 1, force=True)
     return c[0]["url"] if c else ""
+
+
+def _valeur(ch):
+    """Ordre de grandeur d'un chiffre affiché (6 Md₪ > 162 M₪ > 76 %), pour garder les plus forts dans le reel."""
+    m = re.search(r"(\d+(?:[ ,.]\d+)*)\s*(Md|M|k)?", ch or "")
+    if not m or re.fullmatch(r"(19|20)\d\d", (ch or "").strip()):
+        return -1  # une année ou pas de nombre : passe après les chiffres
+    v = float(m.group(1).replace(" ", "").replace(",", "."))
+    mult = {"Md": 1e9, "M": 1e6, "k": 1e3}.get(m.group(2) or "", 1)
+    return v * mult if any(c in ch for c in "$€₪") else v
+
+
+def slides_reel(sl):
+    """Indices des slides gardées dans le reel : couverture, les 4 faits aux chiffres les plus forts (ordre conservé), fin."""
+    faits = [i for i, x in enumerate(sl) if x.get("type") == "point"]
+    top = sorted(faits, key=lambda i: -_valeur(sl[i].get("chiffre")))[:4]
+    return [0] + sorted(top) + [len(sl) - 1]
 
 
 DONE = "portraits-faits"  # portraits déjà envoyés, enregistrés chez Cloudinary
@@ -149,6 +166,12 @@ def main():
             PC.save_plan(DONE, {"faits": faits})
             photo = photo_personne(sujet, titre, url)
             out["slides"][0]["photo"] = photo
+            try:  # pour le reel : même photo, et seulement la couverture, les 4 faits les plus forts et la fin
+                carte = PC.load_plan(R.PORTRAITS) or {}
+                carte[out["slides"][0]["titre"]] = {"photo": photo, "garder": slides_reel(out["slides"])}
+                PC.save_plan(R.PORTRAITS, carte)
+            except Exception as e:
+                print("plan du reel non enregistré :", e)
             print("Portrait :", titre, "|", out["slides"][0]["titre"], "| photo :", photo or "aucune")
             tell_make("SAVOIR|" + base64.b64encode(json.dumps(out, ensure_ascii=False).encode()).decode() + "|" + url)
             return

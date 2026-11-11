@@ -12,11 +12,11 @@ import base64, datetime, json, os, urllib.parse
 import render_reel as R
 from notify import tell_make
 import photo_choice as PC
-from saviez_vous import wiki_text
+import urllib.request
 
-# (date du mercredi, titre exact de l'article Wikipédia en anglais)
+# (date du mercredi, titre exact de l'article Wikipédia en anglais, ou « he:titre » pour Wikipédia en hébreu)
 PROGRAMME = [
-    ("2026-11-18", "Rami Levy (businessman)"),
+    ("2026-11-18", "he:רמי לוי"),  # pas d'article en anglais
     ("2026-11-25", "Omri Casspi"),
     ("2026-12-02", "Dov Moran"),
     ("2026-12-09", "Ofra Strauss"),
@@ -34,7 +34,7 @@ RESERVE = ["Shlomo Kramer", "Yitzhak Tshuva", "Ziv Aviram"]  # si un article est
 
 PROMPT = """Tu es le rédacteur en chef de @bizhakesef, un média Instagram d'information en français sur l'économie israélienne. Ton : factuel, précis, neutre, sans sensationnalisme, sans flatterie ni critique, sans tutoiement, sans question au lecteur.
 
-Tu prépares un post de la série « Portrait » : le parcours d'une personnalité israélienne du monde des affaires, à partir de son article Wikipédia ci-dessous. Le lecteur doit apprendre en 30 secondes qui est cette personne, ce qu'elle a construit et ce qui rend son parcours remarquable.
+Tu prépares un post de la série « Portrait » : le parcours d'une personnalité israélienne du monde des affaires, à partir de son article Wikipédia ci-dessous (en anglais ou en hébreu). Le lecteur doit apprendre en 30 secondes qui est cette personne, ce qu'elle a construit et ce qui rend son parcours remarquable.
 
 Règles des faits :
 - Uniquement les faits de l'article ci-dessous. Aucun chiffre, aucune date, aucun nom ajouté de mémoire, même s'ils te semblent exacts.
@@ -56,27 +56,38 @@ La légende (`caption`), 400 à 900 caractères, sans hashtags :
 - Puis une ligne d'appel : « ✉️ Envoyez ce post à quelqu'un qui … », en nommant le public que ce parcours inspirera ou intéressera (par exemple « qui rêve de créer son entreprise en Israël », « qui fait ses courses chez Rami Levy »).
 - Puis « Suivez @bizhakesef pour l'actualité économique d'Israël. », puis « 📰 Source : Wikipédia ».
 
-Autres champs : `hashtags` 3 à 5, du plus spécifique au plus large, toujours #EconomieIsraelienne et #Portrait ; `verification` : une entrée par chiffre ou date, « <chiffre> ← <extrait exact de l'article, en anglais> » ; `format_recommande` "reel" ; `interet_grand_public` : note de 1 à 5 suivie d'un tiret et d'une raison de 10 mots maximum (5 : personne connue de tout Israël ou d'une marque du quotidien, 3 : connue du monde des affaires, 1 : peu connue) ; `source_nom` « Wikipédia » ; `categorie` « PORTRAIT » ; `raison_si_non_pertinent` vide si pertinent.
+Autres champs : `hashtags` 3 à 5, du plus spécifique au plus large, toujours #EconomieIsraelienne et #Portrait ; `verification` : une entrée par chiffre ou date, « <chiffre> ← <extrait exact de l'article, dans sa langue> » ; `format_recommande` "reel" ; `interet_grand_public` : note de 1 à 5 suivie d'un tiret et d'une raison de 10 mots maximum (5 : personne connue de tout Israël ou d'une marque du quotidien, 3 : connue du monde des affaires, 1 : peu connue) ; `source_nom` « Wikipédia » ; `categorie` « PORTRAIT » ; `raison_si_non_pertinent` vide si pertinent.
 
 ARTICLE WIKIPÉDIA (« {titre} ») :
 """
+
+def wiki_text(sujet):
+    lang, title = sujet.split(":", 1) if sujet[:3] in ("he:", "fr:") else ("en", sujet)
+    u = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode({
+        "action": "query", "prop": "extracts", "explaintext": 1, "redirects": 1, "titles": title,
+        "format": "json", "formatversion": 2})
+    with urllib.request.urlopen(urllib.request.Request(u, headers=R.UA), timeout=30) as r:
+        pg = json.load(r)["query"]["pages"][0]
+    titre = pg.get("title", title)
+    return titre, (pg.get("extract") or "")[:14000], f"https://{lang}.wikipedia.org/wiki/" + urllib.parse.quote(titre.replace(" ", "_"))
+
 
 DONE = "portraits-faits"  # portraits déjà envoyés, enregistrés chez Cloudinary
 
 
 def rediger(sujet, schema):
-    titre, texte = wiki_text(sujet)
+    titre, texte, url = wiki_text(sujet)
     if len(texte) < 1500:
         print("Article trop court :", titre, len(texte))
-        return titre, None
+        return titre, None, url
     body = {"contents": [{"parts": [{"text": PROMPT.replace("{titre}", titre) + texte}]}],
             "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": schema}}
     d = R.first_ok(R.TEXT_MODELS, body)
     out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
     if not out.get("pertinent"):
         print("Portrait écarté :", titre, out.get("raison_si_non_pertinent"))
-        return titre, None
-    return titre, out
+        return titre, None, url
+    return titre, out, url
 
 
 def main():
@@ -93,11 +104,10 @@ def main():
             return
         file = dus[:1] + [t for t in RESERVE if t not in faits]
     for sujet in file:
-        titre, out = rediger(sujet, schema)
+        titre, out, url = rediger(sujet, schema)
         faits.append(sujet)  # même forcé : un portrait envoyé en avance ne repasse pas à sa date
         if out:
             PC.save_plan(DONE, {"faits": faits})
-            url = "https://en.wikipedia.org/wiki/" + urllib.parse.quote(titre.replace(" ", "_"))
             print("Portrait :", titre, "|", out["slides"][0]["titre"])
             tell_make("SAVOIR|" + base64.b64encode(json.dumps(out, ensure_ascii=False).encode()).decode() + "|" + url)
             return

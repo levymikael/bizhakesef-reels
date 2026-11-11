@@ -50,7 +50,7 @@ La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhake
 
 `entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.
 `recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Pour une société ou une institution, commence par son logo ; pour une personne, son nom. Jamais de bureaux ni de siège. Exemples : « El Al logo | El Al Boeing 787 », « Bank of Israel logo | Bank of Israel emblem », « Benjamin Netanyahu », « new israeli shekel | shekel coins », « Tel Aviv construction cranes | apartment construction Israel ».
-`theme_photo` : trois requêtes en anglais séparées par « | » pour une image concrète et spectaculaire de l'OBJET de l'information (le secteur, le produit, l'activité touchée), indépendamment de l'entité, ancrée en Israël quand c'est possible (compagnie, lieu ou objet israélien), et précise (« passenger airliner », pas « airplane », qui ramène des avions militaires). Exemples : taxe sur les vols → « El Al Boeing 787 | Ben Gurion airport | passenger airliner takeoff » ; gaz → « offshore gas platform | gas rig Mediterranean » ; immobilier → « construction cranes Tel Aviv | apartment towers construction » ; shekel → « shekel banknotes | shekel coins » ; puces → « semiconductor wafer | computer chip ».
+`theme_photo` : trois requêtes en anglais séparées par « | » pour une image concrète et spectaculaire de l'OBJET de l'information (le secteur, le produit, l'activité touchée), indépendamment de l'entité, ancrée en Israël quand c'est possible (compagnie, lieu ou objet israélien), et précise (« passenger airliner », pas « airplane », qui ramène des avions militaires). Exemples : taxe sur les vols → « El Al Boeing 787 | Ben Gurion airport | passenger airliner takeoff » ; gaz → « offshore gas platform | gas rig Mediterranean » ; immobilier → « construction cranes Tel Aviv | apartment towers construction » ; shekel → « shekel banknotes | shekel coins » ; puces → « semiconductor wafer | computer chip ». Quand le sujet est abstrait ou social (licenciements, salaires, chômage, inflation, impôts, budget, coût de la vie), décris une SCÈNE HUMAINE concrète qui montre le fait, comme dans une banque de photos d'agence : licenciements tech → « employee carrying cardboard box leaving office | empty office desks | worker packing belongings desk » ; salaires → « payslip salary | worker counting money » ; impôts → « tax form calculator | paying taxes » ; coût de la vie → « supermarket shopping cart prices | grocery receipt ». Jamais de requête vague comme « Israel economy » ou « tel aviv startup ».
 
 Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affiché, doit être exactement celui de la slide (si la slide affiche 670 M$, la voix dit « six cent soixante-dix millions de dollars »). Pas d'emoji, pas de hashtag.
 
@@ -320,6 +320,16 @@ def _pexels_cands(q, n=5):
             for p in d.get("photos", [])]
 
 
+def _pixabay_cands(q, n=4):
+    k = os.environ.get("PIXABAY_API_KEY")
+    if not k:
+        return []
+    d = _get_json("https://pixabay.com/api/?" + urllib.parse.urlencode(
+        {"key": k, "q": q[:100], "image_type": "photo", "per_page": max(n, 3), "safesearch": "true", "min_width": 900}))
+    return [{"url": h["largeImageURL"], "label": h.get("tags") or "", "credit": f"Photo : {h.get('user')} / Pixabay"}
+            for h in d.get("hits", [])[:n]]
+
+
 RANK_SCHEMA = {"type": "object", "required": ["classement", "raison"], "properties": {
     "classement": {"type": "array", "items": {"type": "object", "required": ["image", "logo"],
                                               "properties": {"image": {"type": "integer"}, "logo": {"type": "boolean"}}}},
@@ -353,13 +363,13 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
     if autres:  # nouvelle recherche : d'autres angles du même sujet
         qs += {"entreprise": [f"{nom} CEO", f"{nom} founder", f"{nom} product"],
                "institution": [f"{nom} governor", f"{nom} emblem"],
-               "personne": [f"{nom} speech", f"{nom} conference"]}.get(typ, ["Israel economy", "Tel Aviv business district"])
+               "personne": [f"{nom} speech", f"{nom} conference"]}.get(typ, [f"{t} photo" for t in theme] or [nom])
     jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if ent.get("wikipedia") or typ != "aucune" else []]
     if typ in ("entreprise", "institution") and nom:
         jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
     for x in qs:
         jobs += [lambda x=x: _commons_cands(x, 8 if autres else 5), lambda x=x: _openverse_cands(x, 4, 2 if autres else 1),
-                 lambda x=x: _pexels_cands(x, 3)]
+                 lambda x=x: _pexels_cands(x, 4 if autres else 3), lambda x=x: _pixabay_cands(x, 4 if autres else 3)]
     cands = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         for fut in [ex.submit(j) for j in jobs]:
@@ -408,6 +418,10 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         "militaire) pour des billets d'avion, de préférence israélien (El Al, Israir, Arkia, Ben Gourion), à défaut un bel "
         "avion de ligne quelconque ; de même, une image prise en Israël plutôt qu'ailleurs, à défaut une image générique "
         "réussie du secteur. Mieux vaut une image générique spectaculaire qu'aucune image du secteur.\n"
+        "- L'image doit montrer LE FAIT annoncé, pas seulement le secteur : pour des licenciements, un salarié qui part "
+        "avec un carton ou des bureaux vides ; pour des salaires, une fiche de paie ou de l'argent. Une photo d'événement, "
+        "de conférence, de festival, de concours ou de foule sans rapport direct avec le fait est EXCLUE. Pour un sujet "
+        "abstrait ou social, une belle photo d'agence (Pexels, Pixabay) qui illustre le fait est la meilleure option.\n"
         "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
         "accompagnés de longs textes.\n"
         "- Varie les propositions : des images franchement DIFFÉRENTES entre elles (par exemple un logo, un produit, un "

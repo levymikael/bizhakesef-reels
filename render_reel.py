@@ -36,7 +36,7 @@ Les {N} images jointes sont les slides du carrousel, dans l'ordre. Le reel aura 
 Pour chaque scène :
 - `phrase` : la phrase de voix off lue pendant la scène, 6 à 12 mots (limite stricte : le reel entier doit durer moins de 25 secondes), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
 - `kicker` : sur-titre de 1 à 3 mots en majuscules (ex. « RÉSULTATS », « CHIFFRE D'AFFAIRES »).
-- `titre` : le message de la scène, 50 caractères maximum, nombres écrits en chiffres (« 237,8 Md$ », jamais en lettres). Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
+- `titre` : le message de la scène, 50 caractères maximum, nombres écrits en chiffres (« 237,8 Md$ », jamais en lettres), le shekel écrit ₪ (« 6 Md₪ », jamais NIS). Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
 - `texte` : précision utile en 85 caractères maximum, qui apporte un fait de plus (ne répète ni le titre ni le chiffre), ou "". Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).
 - `chiffre` : le chiffre clé tel qu'affiché, court, avec unité et signe (ex. « 670 M$ », « -45 % », « +3,2 % »), ou "".
 - `tendance` : « hausse », « baisse » ou « neutre ».
@@ -178,6 +178,9 @@ def shorten(scenes):
 
 def _clean(scenes):
     for s in scenes:  # garde-fou : un texte secondaire encore trop long, ou qui répète le chiffre, est retiré
+        for k in ("chiffre", "titre", "texte", "kicker"):  # le shekel s'écrit ₪ à l'écran, jamais NIS
+            if s.get(k):
+                s[k] = re.sub(r"(\d|Md|M|k)\s*(?:NIS|ILS)\b", r"\1₪", s[k]).replace(" NIS", " shekels")
         t = s.get("texte", "")
         if len(t) > LIMITS["texte"] + 25 or len(_norm(t)) <= 3 or _norm(t) == _norm(s.get("chiffre", "")):
             s["texte"] = ""

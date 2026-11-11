@@ -7,7 +7,7 @@ Telegram avec les boutons REEL / Carrousel / Rejeter, comme un article. Rien n'e
 
 Variables : GEMINI_API_KEY, CLOUDINARY_*, MAKE_HOOK_URL, ADMIN_CHAT_ID ; PORTRAIT (facultatif) force une personne.
 """
-import base64, datetime, json, os, urllib.parse
+import base64, datetime, json, os, re, urllib.parse
 
 import render_reel as R
 from notify import tell_make
@@ -98,10 +98,31 @@ def rediger(sujet, schema):
     if len(texte) < 1500:
         print("Article trop court :", titre, len(texte))
         return titre, None, url
-    body = {"contents": [{"parts": [{"text": PROMPT.replace("{titre}", titre) + texte}]}],
-            "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": schema}}
-    d = R.first_ok(R.TEXT_MODELS, body)
-    out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
+    consigne = ""
+    for essai in range(3):  # contrôle : titre de couverture court, 5 faits, des chiffres plutôt que des dates
+        body = {"contents": [{"parts": [{"text": PROMPT.replace("{titre}", titre) + texte + consigne}]}],
+                "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": schema}}
+        d = R.first_ok(R.TEXT_MODELS, body)
+        out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
+        if not out.get("pertinent"):
+            break
+        sl = out["slides"]
+        faits = [x for x in sl if x.get("type") == "point"]
+        for x in faits:  # un « chiffre » sans nombre (« MVNO ») n'en est pas un
+            if not re.search(r"\d", x.get("chiffre") or ""):
+                x["chiffre"] = ""
+        annees = sum(bool(re.fullmatch(r"(19|20)\d\d", (x.get("chiffre") or "").strip())) for x in faits)
+        defauts = []
+        if len(sl[0].get("titre", "")) > 55:
+            defauts.append(f"le titre de couverture fait {len(sl[0]['titre'])} caractères, 50 au maximum")
+        if len(faits) != 5:
+            defauts.append(f"il y a {len(faits)} slides de faits, il en faut exactement 5")
+        if annees > 2 or sum(bool(x.get("chiffre")) for x in faits) < 4:
+            defauts.append("les faits doivent porter des chiffres (montants, nombres, pourcentages) et au plus deux années")
+        if not defauts:
+            break
+        print("Nouvel essai :", " ; ".join(defauts))
+        consigne = "\n\nATTENTION, ta proposition précédente ne respectait pas les règles : " + " ; ".join(defauts) + ". Corrige-le."
     if not out.get("pertinent"):
         print("Portrait écarté :", titre, out.get("raison_si_non_pertinent"))
         return titre, None, url

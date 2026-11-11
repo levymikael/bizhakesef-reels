@@ -141,6 +141,10 @@ def analyse(caption, slides, maj=""):
         src = next((x for x in sc[1:-1] if x.get("chiffre")), None)
         if src:
             sc[0].update(chiffre=src["chiffre"], tendance=src.get("tendance", "neutre"))
+    norm = lambda c: re.sub(r"\s+", "", (c or "")).lower()
+    if len(sc) > 4 and sc[0].get("chiffre"):  # une scène qui répète le chiffre de l'accroche est retirée (reel plus court)
+        out["retire"] = [k for k in range(1, len(sc) - 1) if norm(sc[k].get("chiffre")) == norm(sc[0]["chiffre"])][:1]
+        sc = out["scenes"] = [s for k, s in enumerate(sc) if k not in out["retire"]]
     shorten(sc)
     return out
 
@@ -647,9 +651,12 @@ def render(job, out):
     import photo_choice as PC
     saved = PC.load_plan(job["id"]) if job.get("id") and not job.get("plan") else None
     if (job.get("photo") is not None or job.get("autres")) and saved:  # le plan déjà établi est repris tel quel
-        plan = {k: v for k, v in saved.items() if k in ("entite", "scenes")}
+        plan = {k: v for k, v in saved.items() if k in ("entite", "scenes", "retire")}
     else:
         plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
+    if plan.get("retire"):  # slide dont le chiffre doublonnait l'accroche
+        slides = [p for k, p in enumerate(slides) if k not in plan["retire"]]
+        n = len(slides)
     step("analyse Gemini terminée")
     if job.get("mode") == "choix":  # 1er passage : l'administrateur choisit la photo sur Telegram
         vus = (saved or {}).get("photo_vus", []) if job.get("autres") else []

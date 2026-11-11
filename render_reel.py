@@ -661,8 +661,10 @@ def render(job, out):
                 with urllib.request.urlopen(urllib.request.Request(info["photo"], headers=UA), timeout=40) as r:
                     data = r.read()
                 mime = "image/png" if data[1:4] == b"PNG" else "image/jpeg"
-                cands = [{"url": info["photo"], "credit": "Photo : Wikimedia Commons", "label": "Portrait (Wikipédia)",
-                          "logo": False, "data": data, "mime": mime}] + cands[:3]
+                rest, cands = cands, [{"url": info["photo"], "credit": "Photo : Wikimedia Commons", "label": "Portrait (Wikipédia)",
+                          "logo": False, "data": data, "mime": mime}]
+                nomf = lambda u: urllib.parse.unquote(u.split("?")[0].rsplit("/", 1)[-1]).split("px-")[-1]
+                cands += [c for c in rest if nomf(c["url"]) != nomf(info["photo"])][:3]  # pas deux fois la même photo
             except Exception as e:
                 print("portrait : photo indisponible :", e, file=sys.stderr)
         step(f"{len(cands)} photos candidates")

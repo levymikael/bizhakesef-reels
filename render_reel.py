@@ -374,7 +374,7 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         qs += {"entreprise": [f"{nom} CEO", f"{nom} founder", f"{nom} product"],
                "institution": [f"{nom} governor", f"{nom} emblem"],
                "personne": [f"{nom} speech", f"{nom} conference"]}.get(typ, [f"{t} photo" for t in theme] or [nom])
-    jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if ent.get("wikipedia") or typ != "aucune" else []]
+    jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if typ != "aucune" else []]  # sujet général : pas de page Wikipédia hasardeuse
     if typ in ("entreprise", "institution") and nom:
         jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
     for x in qs:
@@ -420,7 +420,8 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         f"Ce qu'on veut : {voulu}.\n\n"
         "Règles :\n"
         "- Exactitude absolue : la bonne entité, jamais un homonyme, une autre entreprise, un autre pays ou un ancien logo "
-        "quand le logo actuel est disponible.\n"
+        "quand le logo actuel est disponible. Jamais le logo ou l'emblème d'une organisation que l'article ne cite pas "
+        "(par exemple « French Tech » pour la tech israélienne).\n"
         "- EXCLUS les immeubles de bureaux, façades, sièges sociaux et vues de rue : ils n'attirent pas l'œil. "
         "Un aéroport, un port, une usine, une plateforme ou un chantier EN ACTIVITÉ sont en revanche bienvenus.\n"
         "- Quand l'information porte sur une mesure (taxe, loi, réforme, taux, régulation) qui touche un secteur, "

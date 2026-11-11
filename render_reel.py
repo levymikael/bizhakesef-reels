@@ -330,6 +330,16 @@ def _pixabay_cands(q, n=4):
             for h in d.get("hits", [])[:n]]
 
 
+def _unsplash_cands(q, n=4):
+    k = os.environ.get("UNSPLASH_ACCESS_KEY")
+    if not k:
+        return []
+    d = _get_json("https://api.unsplash.com/search/photos?" + urllib.parse.urlencode(
+        {"query": q, "per_page": n, "content_filter": "high"}), {**UA, "Authorization": f"Client-ID {k}", "Accept-Version": "v1"})
+    return [{"url": r["urls"]["regular"], "label": r.get("alt_description") or r.get("description") or "",
+             "credit": f"Photo : {r['user']['name']} / Unsplash"} for r in d.get("results", [])[:n]]
+
+
 RANK_SCHEMA = {"type": "object", "required": ["classement", "raison"], "properties": {
     "classement": {"type": "array", "items": {"type": "object", "required": ["image", "logo"],
                                               "properties": {"image": {"type": "integer"}, "logo": {"type": "boolean"}}}},
@@ -369,7 +379,8 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
     for x in qs:
         jobs += [lambda x=x: _commons_cands(x, 8 if autres else 5), lambda x=x: _openverse_cands(x, 4, 2 if autres else 1),
-                 lambda x=x: _pexels_cands(x, 4 if autres else 3), lambda x=x: _pixabay_cands(x, 4 if autres else 3)]
+                 lambda x=x: _pexels_cands(x, 4 if autres else 3), lambda x=x: _pixabay_cands(x, 4 if autres else 3),
+                 lambda x=x: _unsplash_cands(x, 4 if autres else 3)]
     cands = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         for fut in [ex.submit(j) for j in jobs]:
@@ -421,7 +432,7 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         "- L'image doit montrer LE FAIT annoncé, pas seulement le secteur : pour des licenciements, un salarié qui part "
         "avec un carton ou des bureaux vides ; pour des salaires, une fiche de paie ou de l'argent. Une photo d'événement, "
         "de conférence, de festival, de concours ou de foule sans rapport direct avec le fait est EXCLUE. Pour un sujet "
-        "abstrait ou social, une belle photo d'agence (Pexels, Pixabay) qui illustre le fait est la meilleure option.\n"
+        "abstrait ou social, une belle photo d'agence (Unsplash, Pixabay, Pexels) qui illustre le fait est la meilleure option.\n"
         "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
         "accompagnés de longs textes.\n"
         "- Varie les propositions : des images franchement DIFFÉRENTES entre elles (par exemple un logo, un produit, un "

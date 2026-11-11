@@ -43,10 +43,10 @@ Règles des faits :
 - Tout chiffre est daté (« en 2019 ») si l'article le date. Garde la devise d'origine, montants à la française (670 M$, 1,8 Md$, 6 Md₪, 45 %) ; le shekel s'écrit ₪ ou « shekels », jamais « NIS ». Noms propres translittérés correctement depuis l'hébreu. Les sociétés, marques et lieux s'écrivent sous leur nom officiel en caractères latins, tel qu'il apparaît dans la presse internationale (ישראייר → Israir, קופיקס → Cofix, שופרסל → Shufersal, מחנה יהודה → Mahane Yehuda) : jamais une translittération approximative ou inventée.
 - Si l'article ne contient pas assez de matière sur le parcours économique de la personne, mets `pertinent` à false.
 
-Le carrousel compte exactement 7 slides, chaque slide se comprend seule :
+Le carrousel compte exactement 9 slides, chaque slide se comprend seule :
 1. Couverture (`type` = "cover") : elle portera la photo de la personne. `kicker` = « PORTRAIT ». `titre` : le nom de la personne et ce qui rend son parcours frappant, 50 caractères maximum, avec un chiffre s'il y en a un marquant (affirmation, pas de question). Autres champs vides.
-2. à 6. Exactement CINQ faits marquants de sa vie et de sa carrière (`type` = "point"), dans l'ordre chronologique, chacun un moment fort qu'on a envie de raconter (un départ, une création, un exploit, un rachat, un record) : `chiffre` (10 caractères maximum) = de préférence le CHIFFRE marquant du moment (montant d'un rachat ou d'une levée, chiffre d'affaires, fortune, nombre de magasins ou de salariés, part de marché, record), écrit à la française (1,2 Md$, 50 magasins, 6 Md₪, 45 %) ; une année seulement quand l'article ne donne aucun chiffre pour ce fait, et au plus DEUX slides sur cinq avec une année. L'année va alors dans `titre` ou `texte` (« En 1976, … »). `titre` (40 caractères maximum), `texte` (120 caractères maximum), `tendance` ("hausse", "baisse" ou "neutre"), `kicker` vide.
-7. Fin (`type` = "cta") : `titre` = « L'actualité économique d'Israël, en français », `texte` = « Suivez @bizhakesef et partagez ce post à ceux qui suivent l'économie israélienne. ».
+2. à 8. Exactement SEPT faits marquants de sa vie et de sa carrière (`type` = "point"), dans l'ordre chronologique, chacun un moment fort qu'on a envie de raconter (un départ, une création, un exploit, un rachat, un record) : `chiffre` (10 caractères maximum) : un MIX de chiffres et de dates clés. Au moins QUATRE des sept faits portent le CHIFFRE marquant du moment (montant d'un rachat ou d'une levée, chiffre d'affaires, fortune, nombre de magasins ou de salariés, part de marché, record), écrit à la française (1,2 Md$, 50 magasins, 6 Md₪, 45 %) ; les autres portent l'année clé de l'étape (1976), au plus TROIS slides avec une année. Quand le chiffre est affiché, l'année va dans `titre` ou `texte` (« En 2021, … »). Le chiffre affiché doit figurer tel quel dans `texte` ou s'en déduire directement. `titre` (40 caractères maximum), `texte` (120 caractères maximum), `tendance` ("hausse", "baisse" ou "neutre"), `kicker` vide.
+9. Fin (`type` = "cta") : `titre` = « L'actualité économique d'Israël, en français », `texte` = « Suivez @bizhakesef et partagez ce post à ceux qui suivent l'économie israélienne. ».
 Pas d'emoji dans les slides. Citations entre « ».
 
 La légende (`caption`), 400 à 900 caractères, sans hashtags :
@@ -115,10 +115,10 @@ def rediger(sujet, schema):
         defauts = []
         if len(sl[0].get("titre", "")) > 55:
             defauts.append(f"le titre de couverture fait {len(sl[0]['titre'])} caractères, 50 au maximum")
-        if len(faits) != 5:
-            defauts.append(f"il y a {len(faits)} slides de faits, il en faut exactement 5")
-        if annees > 2 or sum(bool(x.get("chiffre")) for x in faits) < 4:
-            defauts.append("les faits doivent porter des chiffres (montants, nombres, pourcentages) et au plus deux années")
+        if len(faits) != 7:
+            defauts.append(f"il y a {len(faits)} slides de faits, il en faut exactement 7")
+        if annees > 3 or sum(bool(x.get("chiffre")) for x in faits) - annees < 4:
+            defauts.append("les faits doivent porter des chiffres (montants, nombres, pourcentages) et au plus trois années")
         if not defauts:
             break
         print("Nouvel essai :", " ; ".join(defauts))

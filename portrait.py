@@ -100,9 +100,17 @@ def _valeur(ch):
     return v * mult if any(c in ch for c in "$€₪") else v
 
 
+JUDIC = (r"amende|condamn|inculp|mise? en examen|enqu[êe]te|proc[èe]s|tribunal|sanction|fraude|corruption|"
+         r"accus|prison|plainte|poursuites judiciaires|autorit[ée] de la concurrence|antitrust|scandale|perquisition")
+
+
 def slides_reel(sl):
     """Indices des slides gardées dans le reel : couverture, les 4 faits aux chiffres les plus forts (ordre conservé), fin."""
     faits = [i for i, x in enumerate(sl) if x.get("type") == "point"]
+    # les affaires judiciaires restent dans le carrousel, pas dans le reel (sauf s'il ne reste pas assez de faits)
+    judic = lambda x: re.search(JUDIC, " ".join(x.get(k, "") for k in ("titre", "texte", "kicker")), re.I)
+    propres = [i for i in faits if not judic(sl[i])]
+    faits = propres if len(propres) >= 4 else faits
     top = sorted(faits, key=lambda i: -_valeur(sl[i].get("chiffre")))[:4]
     return [0] + sorted(top) + [len(sl) - 1]
 

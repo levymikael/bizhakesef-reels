@@ -1,5 +1,5 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<div class="slide t-{{type}} tend-{{tendance}}">
+<div class="slide t-{{type}} tend-{{tendance}} serie-{{serie}}">
   <div class="glow"></div>
   <div class="grid"></div>
   <header class="top">
@@ -45,7 +45,10 @@
   fits.forEach(function (el) {
     // Sur une slide « point », le titre reste secondaire face au chiffre
     if (isPoint && el.classList.contains('titre')) { el.dataset.max = 62; el.dataset.min = 44; }
-    if (withPhoto && el.classList.contains('titre')) { el.dataset.max = 74; el.dataset.min = 46; }
+    if (withPhoto && el.classList.contains('titre')) {
+      var plein = !!document.querySelector('.serie-portrait');  // portrait : photo plein cadre, titre plus grand
+      el.dataset.max = plein ? 104 : 74; el.dataset.min = plein ? 86 : 46;
+    }
     el.style.fontSize = el.dataset.max + 'px';
   });
   for (var step = 0; step < 60 && overflow(); step++) {

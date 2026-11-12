@@ -598,12 +598,12 @@ def _film_chunk(args):
     return out_part
 
 
-def frames_to_video(scenes, photo, cuts, total, out_video):
+def frames_to_video(scenes, photo, cuts, total, out_video, serie="actu"):
     """Filme reel.html image par image (rendu déterministe : render(t) fixe l'état exact de chaque image).
     Les images sont réparties entre plusieurs navigateurs en parallèle, puis les morceaux sont recollés."""
     from concurrent.futures import ProcessPoolExecutor
     html = Path(__file__).with_name("reel.html").read_text(encoding="utf-8")
-    data = {"scenes": scenes, "photo": photo, "cuts": cuts, "total": total}
+    data = {"scenes": scenes, "photo": photo, "cuts": cuts, "total": total, "serie": serie}
     page_file = Path(out_video).with_suffix(".html")
     page_file.write_text(html.replace("/*DATA*/null/*END*/", json.dumps(data, ensure_ascii=False)), encoding="utf-8")
     nframes = int(total * FPS)
@@ -736,7 +736,10 @@ def render(job, out):
     total = LEAD + dur_voice + TAIL
 
     video = tmp / "video.mp4"
-    frames_to_video(scenes, photo, cuts, total, video)
+    serie = "portrait" if info else "savoir" if job.get("caption", "").lstrip().lower().startswith("le saviez-vous") else "actu"
+    if serie != "actu":  # habillage et sur-titre de la série, reconnaissables dès la première image
+        scenes[0]["kicker"] = "PORTRAIT" if serie == "portrait" else "LE SAVIEZ-VOUS ?"
+    frames_to_video(scenes, photo, cuts, total, video, serie)
     step("animation filmée")
 
     # Son : voix + fond musical qui s'efface sous la voix + whoosh à chaque transition

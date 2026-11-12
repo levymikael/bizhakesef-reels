@@ -546,25 +546,28 @@ def _logo_capture(site):
     return {"url": u, "credit": f"Logo : {dom}", "label": f"Logo du site {dom}", "logo": True, "data": data, "mime": "image/png"}
 
 
-def montage_candidat(plan, contexte, job_id):
-    """Article à plusieurs acteurs (rachat, accord, duel) : un montage côte à côte de leurs logos ou portraits,
-    plus parlant qu'une image d'illustration. Renvoie un candidat, ou None."""
-    from concurrent.futures import ThreadPoolExecutor
+def montage_acteurs(plan):
+    """Les acteurs d'un article à plusieurs sociétés ou personnes (rachat, accord, duel), ou [] s'il n'y en a qu'un."""
     acteurs = [plan.get("entite") or {}] + (plan.get("acteurs") or [])[:2]
     acteurs = [a for a in acteurs if a.get("nom") and a.get("type") in ("entreprise", "personne", "institution")]
-    if len(acteurs) < 2:
-        return None
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        res = list(ex.map(lambda a: (cover_candidates(a, contexte, 1) or [None])[0], acteurs))
-    for i, a in enumerate(acteurs):  # rien trouvé pour une société : son logo, pris sur son site
-        if not res[i] and a.get("site") and a.get("type") != "personne":
-            try:
-                res[i] = _logo_capture(a["site"])
-            except Exception as e:
-                print("capture du logo impossible :", a["site"], e, file=sys.stderr)
-    paires = [(a, c) for a, c in zip(acteurs, res) if c]
-    if len(paires) < 2:
-        return None
+    return acteurs if len(acteurs) >= 2 else []
+
+
+def candidats_acteur(a, contexte, exclure=()):
+    """3 visuels au plus pour une case du montage ; pour une société, toujours au moins un logo."""
+    cands = cover_candidates(a, contexte, 3, exclure, bool(exclure))
+    if a.get("type") != "personne" and not any(c.get("logo") for c in cands) and a.get("site"):
+        try:
+            logo = _logo_capture(a["site"])
+            if logo and logo["url"] not in exclure:
+                cands = [logo] + cands[:2]
+        except Exception as e:
+            print("logo du site impossible :", a["site"], e, file=sys.stderr)
+    return cands[:3]
+
+
+def compose_montage(paires, job_id):
+    """Assemble côte à côte les visuels choisis [(acteur, candidat avec data)] ; renvoie le candidat du montage."""
     from PIL import Image, ImageDraw
     import io
     W = H = 1080; n = len(paires); larg = W // n
@@ -585,6 +588,60 @@ def montage_candidat(plan, contexte, job_id):
     PHOTO_LOG.append({"montage": noms, "sources": [c["url"] for _, c in paires]})
     return {"url": url, "credit": credits[:120], "label": "Montage : " + " + ".join(noms), "logo": False,
             "data": data, "mime": "image/jpeg", "nom": " et ".join(noms)}
+
+
+def _telecharger(c):
+    with urllib.request.urlopen(urllib.request.Request(c["url"], headers=UA), timeout=40) as r:
+        data = r.read()
+    return {**c, "data": data, "mime": "image/png" if data[1:4] == b"PNG" else "image/jpeg"}
+
+
+CLES = ("url", "credit", "label", "logo", "nom")
+
+
+def _question(acteurs, e):
+    return f"🧩 Montage {e + 1}/{len(acteurs)} : quelle image pour {acteurs[e]['nom']} ?"
+
+
+def etape_montage(job, saved, PC):
+    """Choix du montage sur Telegram, une case après l'autre, avec les boutons habituels (PH1 à PH3 ; PH4 = pas de montage).
+    Renvoie un résultat à retourner (on attend le choix suivant), ou None quand le montage est prêt ou abandonné."""
+    m = saved["montage"]; e = m["etape"]; acteurs = m["acteurs"]
+    ctx = job.get("caption", "")
+    if job.get("autres"):  # d'autres visuels pour la case en cours
+        vus = [c["url"] for c in m["cands"][e]] + m.get("vus", [])
+        cands = candidats_acteur(acteurs[e], ctx, vus)
+        if not cands:
+            PC.send_text(f"🤷 Pas d'autre image pour {acteurs[e]['nom']}. Choisis parmi les précédentes.")
+            return {"choix": 0}
+        m["vus"] = vus; m["cands"][e] = [{k: c.get(k) for k in CLES} for c in cands]
+        PC.save_plan(job["id"], saved)
+        PC.send_choice(job["id"], job.get("titre", ""), cands, question=_question(acteurs, e), sans_montage=True)
+        return {"choix": len(cands)}
+    n = int(job["photo"])
+    if n == 4:  # pas de montage : retour aux photos classiques
+        saved["montage"] = None; PC.save_plan(job["id"], saved)
+        lst = saved.get("photo_candidats", [])
+        if not lst:
+            return None
+        PC.send_choice(job["id"], job.get("titre", ""), [_telecharger(c) for c in lst])
+        return {"choix": len(lst)}
+    if n == 0 or n > len(m["cands"][e]):  # sans photo
+        saved["montage"] = None; PC.save_plan(job["id"], saved)
+        return None
+    m["choix"].append(m["cands"][e][n - 1]); m["etape"] = e = e + 1
+    if e < len(acteurs):  # case suivante
+        PC.save_plan(job["id"], saved)
+        cands = [_telecharger(c) for c in m["cands"][e]]
+        PC.send_choice(job["id"], job.get("titre", ""), cands, question=_question(acteurs, e), sans_montage=True)
+        return {"choix": len(cands)}
+    PC.send_text("🧩 Images retenues : je monte la couverture puis le reel (1 à 2 minutes).")
+    mont = compose_montage([(a, _telecharger(c)) for a, c in zip(acteurs, m["choix"])], job["id"])
+    saved["montage"] = None
+    saved["photo_candidats"] = [{k: mont.get(k) for k in CLES}]
+    PC.save_plan(job["id"], saved)
+    job["photo"] = 1  # le montage devient la photo choisie
+    return None
 
 
 def cover_photo(ent, contexte):
@@ -772,7 +829,13 @@ def render(job, out):
         slides = [p for k, p in enumerate(slides) if k not in plan["retire"]]
         n = len(slides)
     step("analyse Gemini terminée")
-    if job.get("mode") == "choix":  # 1er passage : l'administrateur choisit la photo sur Telegram
+    en_cours = bool((saved or {}).get("montage"))
+    if en_cours and (job.get("photo") is not None or job.get("autres")):  # montage : choix image par image
+        r = etape_montage(job, saved, PC)
+        if r is not None:
+            return {**r, "verification_photos": PHOTO_LOG}
+        saved = PC.load_plan(job["id"])
+    if job.get("mode") == "choix" and not (en_cours and job.get("autres")):  # 1er passage : l'administrateur choisit la photo sur Telegram
         vus = (saved or {}).get("photo_vus", []) if job.get("autres") else []
         cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, bool(job.get("autres")))
         if not cands and not job.get("autres"):  # photo obligatoire : recherche élargie, puis sans filtre
@@ -788,17 +851,28 @@ def render(job, out):
                 cands += [c for c in rest if nomf(c["url"]) != nomf(info["photo"])][:3]  # pas deux fois la même photo
             except Exception as e:
                 print("portrait : photo indisponible :", e, file=sys.stderr)
-        if not info and not job.get("autres"):  # plusieurs acteurs : le montage en 1re proposition
+        acteurs = [] if info or job.get("autres") else montage_acteurs(plan)
+        if acteurs:  # plusieurs acteurs : on choisit d'abord l'image de chacun, puis on monte
             try:
-                m = montage_candidat(plan, job.get("caption", ""), job["id"])
-                if m:
-                    cands = [m] + cands[:3]
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=3) as ex:
+                    par = list(ex.map(lambda a: candidats_acteur(a, job.get("caption", "")), acteurs))
+                garde = [(a, c) for a, c in zip(acteurs, par) if c]
+                if len(garde) >= 2:
+                    acteurs, par = [a for a, _ in garde], [c for _, c in garde]
+                    PC.save_plan(job["id"], {**plan, "photo_vus": [c["url"] for c in cands],
+                                             "photo_candidats": [{k: c.get(k) for k in CLES} for c in cands],
+                                             "montage": {"acteurs": acteurs, "etape": 0, "choix": [],
+                                                         "cands": [[{k: c.get(k) for k in CLES} for c in l] for l in par]}})
+                    PC.send_choice(job["id"], job.get("titre", ""), par[0], question=_question(acteurs, 0), sans_montage=True)
+                    step("montage : choix de la 1re image envoyé")
+                    return {"choix": len(par[0]), "montage": [a["nom"] for a in acteurs], "verification_photos": PHOTO_LOG}
             except Exception as e:
                 print("montage impossible :", e, file=sys.stderr)
         step(f"{len(cands)} photos candidates")
         if cands:
             PC.save_plan(job["id"], {**plan, "photo_vus": vus + [c["url"] for c in cands], "photo_candidats": [
-                {k: c.get(k) for k in ("url", "credit", "label", "logo", "nom")} for c in cands]})
+                {k: c.get(k) for k in CLES} for c in cands]})
             PC.send_choice(job["id"], job.get("titre", ""), cands)
             return {"choix": len(cands), "verification_photos": PHOTO_LOG}
         if job.get("autres"):  # rien de nouveau : on le dit, les boutons précédents restent valables

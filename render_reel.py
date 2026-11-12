@@ -48,7 +48,8 @@ La scène 1 est l'accroche, décisive : la plupart des spectateurs décident de 
 - `phrase` : 5 à 9 mots, qui commence directement par le fait ou le chiffre, sans préambule (« Israël envisage », « Selon », « Voici »).
 La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
 
-`entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général.
+`entite` : la société, la personnalité ou l'institution au cœur de l'information. `nom` : son nom usuel. `wikipedia` : son titre exact sur Wikipédia en anglais (ex. « Teva Pharmaceuticals », « Bezalel Smotrich », « Bank of Israel »). `type` : « entreprise », « personne », « institution », ou « aucune » pour un sujet général. `site` : pour une société ou une institution, le domaine de son site officiel (« biocatch.com », « boi.org.il »), seulement si tu en es certain ; sinon "".
+`acteurs` : les AUTRES sociétés ou personnes au cœur de l'information, en plus de `entite` (l'acheteur et la cible d'un rachat, les deux partenaires d'un accord, deux concurrents comparés, le dirigeant qui part et celui qui arrive), au plus 2, avec `nom`, `wikipedia`, `type`, `recherche_photo` et `site` comme pour `entite` ; [] si l'information ne concerne vraiment qu'un acteur. Jamais une institution qui se contente d'autoriser ou de commenter.
 `recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Pour une société ou une institution, commence par son logo ; pour une personne, son nom. Jamais de bureaux ni de siège. Pour un sujet général (type « aucune »), mêmes règles que `theme_photo` ci-dessous : une scène concrète qui montre le fait, jamais une requête vague (« Israel tech ecosystem », « Israel economy »). Exemples : « El Al logo | El Al Boeing 787 », « Bank of Israel logo | Bank of Israel emblem », « Benjamin Netanyahu », « new israeli shekel | shekel coins », « Tel Aviv construction cranes | apartment construction Israel ».
 `theme_photo` : trois requêtes en anglais séparées par « | » pour une image concrète et spectaculaire de l'OBJET de l'information (le secteur, le produit, l'activité touchée), indépendamment de l'entité, ancrée en Israël quand c'est possible (compagnie, lieu ou objet israélien), et précise (« passenger airliner », pas « airplane », qui ramène des avions militaires). Exemples : taxe sur les vols → « El Al Boeing 787 | Ben Gurion airport | passenger airliner takeoff » ; gaz → « offshore gas platform | gas rig Mediterranean » ; immobilier → « construction cranes Tel Aviv | apartment towers construction » ; shekel → « shekel banknotes | shekel coins » ; puces → « semiconductor wafer | computer chip ». Quand le sujet est abstrait ou social (licenciements, salaires, chômage, inflation, impôts, budget, coût de la vie), décris une SCÈNE HUMAINE concrète qui montre le fait, comme dans une banque de photos d'agence : licenciements tech → « employee carrying cardboard box leaving office | empty office desks | worker packing belongings desk » ; salaires → « payslip salary | worker counting money » ; impôts → « tax form calculator | paying taxes » ; coût de la vie → « supermarket shopping cart prices | grocery receipt ». Jamais de requête vague comme « Israel economy » ou « tel aviv startup ». La troisième requête est toujours un ou deux mots-clés simples, comme on les tape dans une banque d'images (« layoffs », « unemployment », « salary », « inflation »).
 
@@ -59,10 +60,13 @@ LÉGENDE :
 SCENE = {"type": "object", "properties": {k: {"type": "string"} for k in
          ("phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia")},
          "required": ["phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia"]}
-SCHEMA = {"type": "object", "required": ["entite", "scenes"], "properties": {
+SCHEMA = {"type": "object", "required": ["entite", "acteurs", "scenes"], "properties": {
     "entite": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo", "theme_photo"],
                "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"},
-                              "recherche_photo": {"type": "string"}, "theme_photo": {"type": "string"}}},
+                              "recherche_photo": {"type": "string"}, "theme_photo": {"type": "string"},
+                              "site": {"type": "string"}}},
+    "acteurs": {"type": "array", "items": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo"],
+                "properties": {k: {"type": "string"} for k in ("nom", "wikipedia", "type", "recherche_photo", "site")}}},
     "scenes": {"type": "array", "items": SCENE}}}
 
 
@@ -366,6 +370,28 @@ def _logo_cands(nom, n=5):
     return out
 
 
+def _site_cands(site):
+    """Le site officiel d'une société : son image de partage (og:image) et son icône, quand rien n'existe sur Wikimédia."""
+    dom = re.sub(r"^https?://|/.*$", "", (site or "").strip().lower())
+    if not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", dom):
+        return []
+    req = urllib.request.Request("https://" + dom, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        base, page = r.geturl(), r.read(600000).decode("utf-8", "replace")
+    out = []
+    for tag in re.findall(r"<(?:meta|link)[^>]*>", page, re.I):
+        attr = dict((k.lower(), v) for k, v in re.findall(r"""([\w:-]+)\s*=\s*["']([^"']*)["']""", tag))
+        kind = (attr.get("property") or attr.get("name") or attr.get("rel") or "").lower()
+        url = attr.get("content") if tag[1:5].lower() == "meta" else attr.get("href")
+        if not url:
+            continue
+        if kind in ("og:image", "twitter:image"):
+            out.append({"url": urllib.parse.urljoin(base, url), "credit": f"Image : {dom}", "label": f"Site officiel {dom} (image de partage)"})
+        elif "apple-touch-icon" in kind or ("icon" in kind and re.search(r"\.png", url, re.I)):
+            out.append({"url": urllib.parse.urljoin(base, url), "credit": f"Logo : {dom}", "label": f"Site officiel {dom} (icône)", "logo": True})
+    return list({c["url"]: c for c in out}.values())[:4]
+
+
 def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
     """Photos candidates pour la couverture, classées par Gemini : le logo pour une société ou une institution,
     le portrait pour une personne, une image concrète pour un sujet général ; jamais un bâtiment.
@@ -384,6 +410,8 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
     jobs = [lambda: _wiki_cands(ent.get("wikipedia"), nom) if typ != "aucune" else []]  # sujet général : pas de page Wikipédia hasardeuse
     if typ in ("entreprise", "institution") and nom:
         jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
+    if typ in ("entreprise", "institution") and ent.get("site"):
+        jobs.append(lambda: _site_cands(ent["site"]))
     for x in qs:
         jobs += [lambda x=x: _commons_cands(x, 8 if autres else 5), lambda x=x: _openverse_cands(x, 4, 2 if autres else 1),
                  lambda x=x: _pexels_cands(x, 4 if autres else 3), lambda x=x: _pixabay_cands(x, 4 if autres else 3),
@@ -474,6 +502,89 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
 def photo_dict(c):
     return {"src": f"data:{c['mime']};base64," + base64.b64encode(c["data"]).decode(), "logo": c.get("logo", False),
             "page": c.get("label", "")[:80], "credit": c.get("credit", "")[:70]}
+
+
+def _panneau(c, w, h, nom=""):
+    """Une case du montage : photo recadrée plein cadre, logo entier sur fond blanc."""
+    from PIL import Image, ImageOps
+    import io
+    im = Image.open(io.BytesIO(c["data"]))
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGBA"); fond = Image.new("RGBA", im.size, "white"); fond.alpha_composite(im); im = fond
+    im = im.convert("RGB")
+    if c.get("logo") or c["mime"] == "image/png" and min(im.size) < 700:
+        case = Image.new("RGB", (w, h), "white")
+        im.thumbnail((int(w * .72), int(h * .4)))
+        nom = "" if im.width > 2.2 * im.height else nom  # logo en toutes lettres : le nom y est déjà
+        y = (h - im.height) // 2 - (40 if nom else 0)
+        case.paste(im, ((w - im.width) // 2, y))
+        if nom:  # le nom sous le logo : un symbole seul ne se reconnaît pas toujours
+            from PIL import ImageDraw, ImageFont
+            d = ImageDraw.Draw(case)
+            taille = 56
+            while taille > 26:
+                f = ImageFont.load_default(size=taille)
+                if d.textlength(nom, font=f) <= w * .8:
+                    break
+                taille -= 4
+            d.text((w // 2, y + im.height + 40), nom, font=f, fill="#0B1B3F", anchor="mt")
+        return case
+    return ImageOps.fit(im, (w, h), centering=(.5, .3))
+
+
+def _logo_capture(site):
+    """Dernier recours pour le montage : l'icône officielle du site en 256 px (service d'icônes de Google)."""
+    dom = re.sub(r"^https?://|/.*$", "", (site or "").strip().lower())
+    if not dom:
+        return None
+    u = ("https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=256&url="
+         + urllib.parse.quote("https://" + dom, safe=""))
+    with urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=20) as r:
+        data = r.read()
+    if data[1:4] != b"PNG" or int.from_bytes(data[16:20], "big") < 128:  # icône absente ou trop petite
+        return None
+    return {"url": u, "credit": f"Logo : {dom}", "label": f"Logo du site {dom}", "logo": True, "data": data, "mime": "image/png"}
+
+
+def montage_candidat(plan, contexte, job_id):
+    """Article à plusieurs acteurs (rachat, accord, duel) : un montage côte à côte de leurs logos ou portraits,
+    plus parlant qu'une image d'illustration. Renvoie un candidat, ou None."""
+    from concurrent.futures import ThreadPoolExecutor
+    acteurs = [plan.get("entite") or {}] + (plan.get("acteurs") or [])[:2]
+    acteurs = [a for a in acteurs if a.get("nom") and a.get("type") in ("entreprise", "personne", "institution")]
+    if len(acteurs) < 2:
+        return None
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        res = list(ex.map(lambda a: (cover_candidates(a, contexte, 1) or [None])[0], acteurs))
+    for i, a in enumerate(acteurs):  # rien trouvé pour une société : son logo, pris sur son site
+        if not res[i] and a.get("site") and a.get("type") != "personne":
+            try:
+                res[i] = _logo_capture(a["site"])
+            except Exception as e:
+                print("capture du logo impossible :", a["site"], e, file=sys.stderr)
+    paires = [(a, c) for a, c in zip(acteurs, res) if c]
+    if len(paires) < 2:
+        return None
+    from PIL import Image, ImageDraw
+    import io
+    W = H = 1080; n = len(paires); larg = W // n
+    img = Image.new("RGB", (W, H), "white")
+    for i, (a, c) in enumerate(paires):
+        img.paste(_panneau(c, larg, H, a["nom"]), (i * larg, 0))
+    d = ImageDraw.Draw(img)
+    for i in range(1, n):  # séparation blanche en biais, filet bleu
+        x = i * larg
+        d.polygon([(x - 40, H), (x + 10, H), (x + 40, 0), (x - 10, 0)], fill="white")
+        d.line([(x - 15, H), (x + 15, 0)], fill="#0038B8", width=8)
+    buf = io.BytesIO(); img.save(buf, "JPEG", quality=90); data = buf.getvalue()
+    tmp = Path(tempfile.mkdtemp()) / "montage.jpg"; tmp.write_bytes(data)
+    import render_slides
+    url = render_slides.upload_image(tmp, f"montage-{job_id}-{hashlib.md5(data).hexdigest()[:8]}")
+    noms = [a["nom"] for a, _ in paires]
+    credits = " · ".join(dict.fromkeys(c.get("credit", "") for _, c in paires if c.get("credit")))
+    PHOTO_LOG.append({"montage": noms, "sources": [c["url"] for _, c in paires]})
+    return {"url": url, "credit": credits[:120], "label": "Montage : " + " + ".join(noms), "logo": False,
+            "data": data, "mime": "image/jpeg", "nom": " et ".join(noms)}
 
 
 def cover_photo(ent, contexte):
@@ -677,10 +788,17 @@ def render(job, out):
                 cands += [c for c in rest if nomf(c["url"]) != nomf(info["photo"])][:3]  # pas deux fois la même photo
             except Exception as e:
                 print("portrait : photo indisponible :", e, file=sys.stderr)
+        if not info and not job.get("autres"):  # plusieurs acteurs : le montage en 1re proposition
+            try:
+                m = montage_candidat(plan, job.get("caption", ""), job["id"])
+                if m:
+                    cands = [m] + cands[:3]
+            except Exception as e:
+                print("montage impossible :", e, file=sys.stderr)
         step(f"{len(cands)} photos candidates")
         if cands:
             PC.save_plan(job["id"], {**plan, "photo_vus": vus + [c["url"] for c in cands], "photo_candidats": [
-                {k: c[k] for k in ("url", "credit", "label", "logo")} for c in cands]})
+                {k: c.get(k) for k in ("url", "credit", "label", "logo", "nom")} for c in cands]})
             PC.send_choice(job["id"], job.get("titre", ""), cands)
             return {"choix": len(cands), "verification_photos": PHOTO_LOG}
         if job.get("autres"):  # rien de nouveau : on le dit, les boutons précédents restent valables
@@ -708,7 +826,7 @@ def render(job, out):
         elif choisie == "":  # aucune validation enregistrée : choix automatique
             photo = cover_photo(ent, job.get("caption", ""))
         if photo:
-            photo["nom"] = ent.get("nom", "") if ent.get("type", "aucune") != "aucune" else ""
+            photo["nom"] = (choisie or {}).get("nom") or (ent.get("nom", "") if ent.get("type", "aucune") != "aucune" else "")
         for s in scenes[1:-1]:
             w = s.get("entite_wikipedia", "")
             if w and w != ent.get("wikipedia"):

@@ -20,6 +20,12 @@ def page_html(values):
     return f'<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>{body}</body></html>'
 
 
+def serie(job):
+    """Habillage propre à chaque série, reconnu au sur-titre de la couverture."""
+    k = ((job.get("slides") or [{}])[0].get("kicker") or "").upper()
+    return "portrait" if "PORTRAIT" in k else "savoir" if "SAVIEZ" in k else "actu"
+
+
 def render_all(job, out_dir):
     from playwright.sync_api import sync_playwright
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
@@ -29,7 +35,8 @@ def render_all(job, out_dir):
         br = pw.chromium.launch(**kw)
         page = br.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=1)
         for i, s in enumerate(slides):
-            values = {**s, "num": i + 1, "total": len(slides), "source": job.get("source", ""), "date": job.get("date", "")}
+            values = {**s, "num": i + 1, "total": len(slides), "source": job.get("source", ""), "date": job.get("date", ""),
+                      "serie": serie(job)}
             f = out_dir / f"slide-{i + 1}.html"
             f.write_text(page_html(values), encoding="utf-8")
             page.goto(f.resolve().as_uri(), wait_until="networkidle")

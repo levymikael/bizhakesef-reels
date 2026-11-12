@@ -67,3 +67,51 @@ html, body { width: 1080px; height: 1350px; background: #FFFFFF; }
 .date { font-size: 26px; color: var(--muted); }
 .swipe { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 30px; color: var(--blue); }
 .swipe span { display: inline-block; margin-left: 8px; }
+
+/* ===== Série PORTRAIT : magazine, bleu nuit et or ===== */
+.slide.serie-portrait {
+  --ink: #FFFFFF; --muted: #9FB0D3; --line: rgba(255, 255, 255, .16); --gold: #F2C14E;
+  --accent: var(--gold); --soft: rgba(242, 193, 78, .12);
+  background: linear-gradient(165deg, #0B1B3F 0%, #12295E 100%); color: #FFFFFF;
+}
+.serie-portrait::before, .serie-portrait::after { background: var(--gold); height: 10px; }
+.serie-portrait .grid { opacity: .05; filter: invert(1) brightness(2); }
+.serie-portrait .brand { color: #FFFFFF; }
+.serie-portrait .mark { background: var(--gold); color: #0B1B3F; }
+.serie-portrait .count { background: rgba(255, 255, 255, .1); color: #FFFFFF; }
+.serie-portrait .kicker { background: transparent; color: var(--gold); border: 3px solid var(--gold); }
+.serie-portrait .titre { color: #FFFFFF; }
+.serie-portrait .texte { color: #C9D4EE; }
+.serie-portrait .swipe, .serie-portrait .source, .serie-portrait .date, .serie-portrait .meta { color: var(--muted); }
+.serie-portrait .swipe { color: var(--gold); }
+.serie-portrait .follow { background: var(--gold); color: #0B1B3F; }
+/* Faits : une frise chronologique dorée à gauche */
+.serie-portrait.t-point .body { border-left: 4px solid rgba(242, 193, 78, .45); padding-left: 52px; margin-left: 10px; }
+.serie-portrait.t-point .body::before { content: ""; position: absolute; left: -16px; top: 50%; width: 28px; height: 28px;
+  border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 8px rgba(242, 193, 78, .2); }
+/* Couverture : photo plein cadre qui se fond dans le bleu nuit, titre posé dessus */
+.serie-portrait.t-cover .body { position: static; justify-content: flex-end; padding-bottom: 10px; }
+.serie-portrait.t-cover .photo { position: absolute; left: 0; top: 0; width: 1080px; height: 1010px; min-height: 0; flex: none;
+  border-radius: 0; box-shadow: none; object-position: center 22%; z-index: 0; }
+.serie-portrait.t-cover .glow { display: block; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(180deg, rgba(11, 27, 63, .7) 0%, rgba(11, 27, 63, 0) 16%, rgba(11, 27, 63, 0) 45%, #0B1B3F 76%); }
+.serie-portrait.t-cover .kicker, .serie-portrait.t-cover .titre { position: relative; z-index: 2; }
+.serie-portrait.t-cover .titre { border-left: none; padding-left: 0; }
+.serie-portrait.t-cover .kicker { background: var(--gold); color: #0B1B3F; border: none; }
+.serie-portrait.t-cover .photo[src=""] ~ .titre { margin-top: auto; }
+
+/* ===== Série LE SAVIEZ-VOUS ? : fond crème, jaune et grand point d'interrogation ===== */
+.slide.serie-savoir { background: #FFF7DE; --soft: #FFFFFF; --line: rgba(11, 27, 63, .12); }
+.serie-savoir .grid { display: none; }
+.serie-savoir .glow { display: block; position: absolute; right: -40px; bottom: 60px; z-index: 0;
+  font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 1150px; line-height: 1; color: var(--blue); opacity: .07; }
+.serie-savoir .glow::before { content: "?"; }
+.serie-savoir .kicker { background: #FFC83D; color: #0B1B3F; }
+.serie-savoir .count { background: #FFFFFF; }
+.serie-savoir .chiffre { background: #FFFFFF; box-shadow: 0 10px 0 #FFC83D; }
+.serie-savoir.t-cover .kicker { font-size: 44px; padding: 16px 36px; transform: rotate(-2deg); }
+.serie-savoir.t-cover .titre { border-left-color: #FFC83D; }
+.serie-savoir .follow { background: var(--blue); }
+/* (portrait) la zone texte, élément flex, ne doit pas créer son propre plan au-dessus du dégradé */
+.serie-portrait.t-cover .body, .serie-portrait.t-cover .body:has(.photo:not([src=""])) { z-index: auto; justify-content: flex-end; gap: 30px; padding-bottom: 10px; }
+.serie-portrait.t-cover::before, .serie-portrait.t-cover::after { z-index: 3; }

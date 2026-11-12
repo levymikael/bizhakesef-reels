@@ -68,6 +68,36 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #fff; 
 .wipe.w1 { background: var(--blue); }
 .wipe.w2 { background: var(--blue2); }
 .wipe.w3 { background: #fff; width: 60px; }
+
+/* ===== Série PORTRAIT : bleu nuit et or, photo plein cadre ===== */
+body.serie-portrait { --blue: #F2C14E; --blue2: #0B1B3F; --ink: #FFFFFF; --muted: #C9D4EE; --soft: rgba(255,255,255,.04); }
+.serie-portrait, .serie-portrait #stage { background: linear-gradient(165deg, #0B1B3F 0%, #12295E 100%); }
+.serie-portrait .star { filter: invert(1) brightness(2); opacity: .05; }
+.serie-portrait .seg { background: rgba(255,255,255,.15); }
+.serie-portrait .brand { color: #FFFFFF; }
+.serie-portrait .kicker, .serie-portrait .cta-btn { color: #0B1B3F; }
+.serie-portrait .cta-logo { box-shadow: 0 40px 90px rgba(242,193,78,.3); }
+.serie-portrait .ph { left: 0; top: 0; width: 1080px; height: 1330px; margin-left: 0; }
+.serie-portrait .ph .clip { inset: 0; border-radius: 0; box-shadow: none; }
+.serie-portrait .ph .clip::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(11,27,63,.75) 0%, rgba(11,27,63,0) 24%, rgba(11,27,63,0) 50%, rgba(11,27,63,.6) 80%); }
+.serie-portrait .ph .clip { -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent 99%); mask-image: linear-gradient(180deg, #000 62%, transparent 99%); }
+.serie-portrait .sticker { background: #F2C14E !important; color: #0B1B3F; }
+.serie-portrait .ph svg.ring, .serie-portrait .ph .name, .serie-portrait .credit { display: none; }
+.serie-portrait .ph ~ .title { color: #FFFFFF; }
+.serie-portrait #s0 { z-index: 0; }
+.serie-portrait #s0 .kicker, .serie-portrait #s0 .title, .serie-portrait #s0 .sticker { z-index: 3; }
+.serie-portrait #s0 .kicker { top: 1080px; }
+.serie-portrait .segs, .serie-portrait .brand, .serie-portrait .band { z-index: 2; }
+
+/* ===== Série LE SAVIEZ-VOUS ? : fond crème, jaune et grand « ? » ===== */
+body.serie-savoir { --soft: #FFFFFF; }
+.serie-savoir, .serie-savoir #stage { background: #FFF7DE; }
+.serie-savoir .star { display: none; }
+.serie-savoir #stage::before { content: "?"; position: absolute; right: -60px; top: 380px; font-weight: 900; font-size: 1500px;
+  line-height: 1; color: #0038B8; opacity: .06; }
+.serie-savoir .kicker { background: #FFC83D; color: #0B1B3F; transform-origin: left center; }
+.serie-savoir .bar { box-shadow: 0 8px 0 #FFC83D; }
 </style>
 </head>
 <body>
@@ -98,6 +128,7 @@ function titleSize(s, base) {
   return L > 70 ? base * .72 : L > 50 ? base * .84 : base;
 }
 
+document.body.className = "serie-" + (DATA.serie || "actu");
 const stage = document.getElementById("stage");
 const S = DATA.scenes, N = S.length, T = DATA.total, CUTS = DATA.cuts, STARTS = [0, ...CUTS];
 

@@ -53,7 +53,7 @@ La légende (`caption`), 400 à 900 caractères, sans hashtags :
 - Première ligne : « Portrait : » suivi du nom et du fait le plus marquant de son parcours, 125 caractères maximum.
 - Deux ou trois paragraphes courts : le parcours, puis ce qu'il représente pour l'économie israélienne. Un ou deux emojis sobres.
 - Puis une ligne d'appel : « ✉️ Envoyez ce post à quelqu'un qui … », en nommant le public que ce parcours inspirera ou intéressera (par exemple « qui rêve de créer son entreprise en Israël », « qui fait ses courses chez Rami Levy »).
-- Puis « Suivez @bizhakesef pour l'actualité économique d'Israël. », puis « 📰 Source : Wikipédia ».
+- Puis « Suivez @bizhakesef : un portrait chaque jeudi. », puis « 📰 Source : Wikipédia ».
 
 Autres champs : `hashtags` 3 à 5, du plus spécifique au plus large, toujours #EconomieIsraelienne et #Portrait ; `verification` : une entrée par chiffre ou date, « <chiffre> ← <extrait exact de l'article, dans sa langue> » ; `format_recommande` "reel" ; `interet_grand_public` : note de 1 à 5 suivie d'un tiret et d'une raison de 10 mots maximum (5 : personne connue de tout Israël ou d'une marque du quotidien, 3 : connue du monde des affaires, 1 : peu connue) ; `source_nom` « Wikipédia » ; `categorie` « PORTRAIT » ; `raison_si_non_pertinent` vide si pertinent.
 

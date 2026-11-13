@@ -49,7 +49,7 @@ Pas d'emoji dans les slides. Citations entre « ».
 La légende (`caption`), 400 à 900 caractères, sans hashtags :
 - Première ligne : « Le saviez-vous ? » suivi du fait, 125 caractères maximum, avec le nom de l'entreprise, de l'institution ou du secteur.
 - Deux ou trois paragraphes courts : le fait, puis son contexte. Un ou deux emojis sobres.
-- Puis : « 📌 Enregistrez ce post pour le retrouver. », puis « Suivez @bizhakesef : un "Le saviez-vous ?" chaque lundi. », puis « 📰 Source : Wikipédia ».
+- Puis : « 📌 Enregistrez ce post pour le retrouver. », puis « Suivez @bizhakesef : Le saviez-vous ? revient chaque lundi. », puis « 📰 Source : Wikipédia ».
 
 Autres champs : `hashtags` 3 à 5, du plus spécifique au plus large, toujours #EconomieIsraelienne et #LeSaviezVous ; `verification` : une entrée par chiffre ou date, « <chiffre> ← <extrait exact de l'article, en anglais> » ; `format_recommande` "reel" ; `interet_grand_public` « 4 — fait marquant et durable sur l'économie israélienne » (adapte la note et la raison) ; `source_nom` « Wikipédia » ; `categorie` « LE SAVIEZ-VOUS ? » ; `raison_si_non_pertinent` vide si pertinent.
 

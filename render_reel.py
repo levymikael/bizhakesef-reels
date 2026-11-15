@@ -24,7 +24,7 @@ TEXT_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.6-
 TTS_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
 VOICE = os.environ.get("REEL_VOICE", "Charon")
 W, H, FPS = 1080, 1920, 30
-SPEED = 1.1        # voix légèrement accélérée
+SPEED = 1.0        # vitesse naturelle (retour des abonnés : 1,1 était trop rapide)
 LEAD = 0.15        # la voix démarre presque immédiatement (accroche)
 TAIL = 0.9
 MUSIC_VOL = 0.5    # fond musical, atténué automatiquement quand la voix parle
@@ -34,7 +34,7 @@ PROMPT = """Tu prépares un reel Instagram de @bizhakesef, un média d'informati
 Les {N} images jointes sont les slides du carrousel, dans l'ordre. Le reel aura exactement {N} scènes : la scène n°k reprend la slide n°k.
 
 Pour chaque scène :
-- `phrase` : la phrase de voix off lue pendant la scène, 6 à 12 mots (limite stricte : le reel entier doit durer moins de 25 secondes), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
+- `phrase` : la phrase de voix off lue pendant la scène, 6 à 12 mots (limite stricte : le reel entier doit durer moins de 28 secondes), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
 - `kicker` : sur-titre de 1 à 3 mots en majuscules (ex. « RÉSULTATS », « CHIFFRE D'AFFAIRES »).
 - `titre` : le message de la scène, 50 caractères maximum, nombres écrits en chiffres (« 237,8 Md$ », jamais en lettres), le shekel écrit ₪ (« 6 Md₪ », jamais NIS). Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
 - `texte` : précision utile en 85 caractères maximum, qui apporte un fait de plus (ne répète ni le titre ni le chiffre), ou "". Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).

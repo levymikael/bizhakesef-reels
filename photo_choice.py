@@ -83,7 +83,7 @@ def send_choice(job_id, titre, cands, question=None, sans_montage=False):
     media, files = [], {}
     for i, c in enumerate(cands):
         files[f"p{i}"] = (f"p{i}.jpg", _flatten(c["data"], c["mime"]), "image/jpeg")
-        media.append({"type": "photo", "media": f"attach://p{i}", "caption": f"{i + 1}" + (" (logo)" if c.get("logo") else "")})
+        media.append({"type": "photo", "media": f"attach://p{i}", "caption": f"{i + 1}" + (" (logo)" if c.get("logo") else "") + (" (illustration IA)" if c.get("ia") else "")})
     if len(media) == 1:
         _tg("sendPhoto", {"chat_id": chat, "caption": "1"}, {"photo": files["p0"]})
     else:

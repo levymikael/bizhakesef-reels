@@ -54,6 +54,7 @@ La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhake
 `acteurs` : les AUTRES sociétés ou personnes au cœur de l'information, en plus de `entite` (l'acheteur et la cible d'un rachat, les deux partenaires d'un accord, deux concurrents comparés, le dirigeant qui part et celui qui arrive), au plus 2, avec `nom`, `wikipedia`, `type`, `recherche_photo` et `site` comme pour `entite` ; [] si l'information ne concerne vraiment qu'un acteur. Jamais une institution qui se contente d'autoriser ou de commenter.
 `recherche_photo` : deux ou trois requêtes en anglais séparées par « | », de la plus précise à la plus large, pour trouver la meilleure photo de couverture dans une banque d'images : le sujet lui-même s'il se photographie, sinon une image concrète qui l'illustre. Pour une société ou une institution, commence par son logo ; pour une personne, son nom. Jamais de bureaux ni de siège. Pour un sujet général (type « aucune »), mêmes règles que `theme_photo` ci-dessous : une scène concrète qui montre le fait, jamais une requête vague (« Israel tech ecosystem », « Israel economy »). Exemples : « El Al logo | El Al Boeing 787 », « Bank of Israel logo | Bank of Israel emblem », « Benjamin Netanyahu », « new israeli shekel | shekel coins », « Tel Aviv construction cranes | apartment construction Israel ».
 `theme_photo` : trois requêtes en anglais séparées par « | » pour une image concrète et spectaculaire de l'OBJET de l'information (le secteur, le produit, l'activité touchée), indépendamment de l'entité, ancrée en Israël quand c'est possible (compagnie, lieu ou objet israélien), et précise (« passenger airliner », pas « airplane », qui ramène des avions militaires). Exemples : taxe sur les vols → « El Al Boeing 787 | Ben Gurion airport | passenger airliner takeoff » ; gaz → « offshore gas platform | gas rig Mediterranean » ; immobilier → « construction cranes Tel Aviv | apartment towers construction » ; shekel → « shekel banknotes | shekel coins » ; puces → « semiconductor wafer | computer chip ». Quand le sujet est abstrait ou social (licenciements, salaires, chômage, inflation, impôts, budget, coût de la vie), décris une SCÈNE HUMAINE concrète qui montre le fait, comme dans une banque de photos d'agence : licenciements tech → « employee carrying cardboard box leaving office | empty office desks | worker packing belongings desk » ; salaires → « payslip salary | worker counting money » ; impôts → « tax form calculator | paying taxes » ; coût de la vie → « supermarket shopping cart prices | grocery receipt ». Jamais de requête vague comme « Israel economy » ou « tel aviv startup ». La troisième requête est toujours un ou deux mots-clés simples, comme on les tape dans une banque d'images (« layoffs », « unemployment », « salary », « inflation »).
+`illustration` : une description en anglais (25 à 45 mots) d'une photo réaliste qui montre LE FAIT annoncé, pour un générateur d'images : une scène concrète, son lieu (en Israël quand c'est pertinent : Tel-Aviv, Jérusalem, Haïfa, le port d'Ashdod, l'aéroport Ben Gourion…), les objets, la lumière. Jamais de texte, de chiffres, de logo, de marque, de drapeau, ni de personne réelle identifiable ou nommée ; des silhouettes anonymes sont possibles. Exemple, ventes de logements neufs en chute à Tel-Aviv : « empty brand-new apartment with bare white walls and large windows overlooking the Tel Aviv skyline at dusk, quiet and unsold, editorial real-estate photography ».
 
 Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affiché, doit être exactement celui de la slide (si la slide affiche 670 M$, la voix dit « six cent soixante-dix millions de dollars »). Pas d'emoji, pas de hashtag.
 
@@ -65,7 +66,7 @@ SCENE = {"type": "object", "properties": {k: {"type": "string"} for k in
 SCHEMA = {"type": "object", "required": ["entite", "acteurs", "scenes"], "properties": {
     "entite": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo", "theme_photo"],
                "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"},
-                              "recherche_photo": {"type": "string"}, "theme_photo": {"type": "string"},
+                              "recherche_photo": {"type": "string"}, "theme_photo": {"type": "string"}, "illustration": {"type": "string"},
                               "site": {"type": "string"}}},
     "acteurs": {"type": "array", "items": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo"],
                 "properties": {k: {"type": "string"} for k in ("nom", "wikipedia", "type", "recherche_photo", "site")}}},
@@ -353,6 +354,35 @@ def _unsplash_cands(q, n=4):
              "credit": f"Photo : {r['user']['name']} / Unsplash"} for r in d.get("results", [])[:n]]
 
 
+IA_STYLE = ("Editorial news photograph, photorealistic, natural light, shallow depth of field, strong single subject, "
+            "high detail. No text, no letters, no numbers, no logos, no brand names, no flags, no watermark, "
+            "no recognizable real person. ")
+
+
+def ia_candidat(desc, job_id):
+    """Illustration générée par l'IA (Cloudflare Workers AI, FLUX.1 schnell), signalée comme telle dans le crédit.
+    Renvoie None sans clé Cloudflare ou en cas d'échec."""
+    acc, tok = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip(), os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if not (acc and tok and desc):
+        return None
+    try:
+        req = urllib.request.Request(
+            f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/@cf/black-forest-labs/flux-1-schnell",
+            data=json.dumps({"prompt": IA_STYLE + desc, "steps": 8}).encode(),
+            headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=90) as r:
+            data = base64.b64decode(json.load(r)["result"]["image"])
+        tmp = Path(tempfile.mkdtemp()) / "ia.jpg"; tmp.write_bytes(data)
+        import render_slides
+        url = render_slides.upload_image(tmp, f"ia-{job_id}-{hashlib.md5(data).hexdigest()[:8]}")
+        PHOTO_LOG.append({"illustration_ia": desc})
+        return {"url": url, "credit": "Illustration générée par IA", "label": "Illustration IA : " + desc[:90],
+                "logo": False, "ia": True, "data": data, "mime": "image/png" if data[1:4] == b"PNG" else "image/jpeg"}
+    except Exception as e:
+        print("illustration IA impossible :", e, file=sys.stderr)
+        return None
+
+
 RANK_SCHEMA = {"type": "object", "required": ["classement", "raison"], "properties": {
     "classement": {"type": "array", "items": {"type": "object", "required": ["image", "logo"],
                                               "properties": {"image": {"type": "integer"}, "logo": {"type": "boolean"}}}},
@@ -602,7 +632,7 @@ def _telecharger(c):
     return {**c, "data": data, "mime": "image/png" if data[1:4] == b"PNG" else "image/jpeg"}
 
 
-CLES = ("url", "credit", "label", "logo", "nom")
+CLES = ("url", "credit", "label", "logo", "nom", "ia")
 
 
 def _question(acteurs, e):
@@ -846,6 +876,11 @@ def render(job, out):
         cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, bool(job.get("autres")))
         if not cands and not job.get("autres"):  # recherche élargie, avec le même classement exigeant
             cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, True)
+        ent0 = plan.get("entite") or {}
+        if not info and ent0.get("type") != "personne":  # illustration IA en dernier choix (sujet, pas une personne)
+            ia = ia_candidat(ent0.get("illustration", ""), job["id"])
+            if ia:
+                cands = cands[:3] + [ia]
         if not cands and not job.get("autres") and not info:  # rien à la hauteur : couverture graphique, sans photo
             PC.send_text(f"🎨 Aucune photo à la hauteur pour « {job.get('titre', '')} » : "
                          "je monte le reel avec la couverture graphique (1 à 2 minutes).")

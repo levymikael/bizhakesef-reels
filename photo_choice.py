@@ -54,16 +54,20 @@ def load_plan(job_id):
 
 
 def _flatten(data, mime):
-    """Logos PNG transparents : posés sur fond blanc pour l'aperçu Telegram (sinon fond noir)."""
-    if mime != "image/png":
-        return data
+    """Aperçu Telegram léger : logos PNG transparents posés sur fond blanc (sinon fond noir),
+    et toute image réduite à 1280 px en JPEG (les grosses images faisaient expirer l'envoi de l'album)."""
     try:
         from PIL import Image
-        im = Image.open(io.BytesIO(data)).convert("RGBA")
-        bg = Image.new("RGBA", (im.width + 120, im.height + 120), "white")
-        bg.alpha_composite(im, (60, 60))
+        im = Image.open(io.BytesIO(data))
+        if mime == "image/png":
+            im = im.convert("RGBA")
+            bg = Image.new("RGBA", (im.width + 120, im.height + 120), "white")
+            bg.alpha_composite(im, (60, 60))
+            im = bg
+        im = im.convert("RGB")
+        im.thumbnail((1280, 1280))
         out = io.BytesIO()
-        bg.convert("RGB").save(out, "JPEG", quality=92)
+        im.save(out, "JPEG", quality=85)
         return out.getvalue()
     except Exception:
         return data
@@ -72,7 +76,7 @@ def _flatten(data, mime):
 def _tg(method, fields, files=None):
     url = f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN'].strip()}/{method}"
     body, ctype = _multipart(fields, files or {})
-    with urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type": ctype}), timeout=60) as r:
+    with urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type": ctype}), timeout=150) as r:
         return json.load(r)
 
 

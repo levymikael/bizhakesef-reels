@@ -92,6 +92,8 @@ def send_choice(job_id, titre, cands, question=None, sans_montage=False):
     autres = [{"text": "🔁 Autres photos", "callback_data": f"PHX|{job_id}"}]
     if sans_montage:
         autres.append({"text": "🖼 Pas de montage", "callback_data": f"PH4|{job_id}"})
+    else:  # aucune photo ne plaît : couverture graphique aux couleurs du compte
+        autres.append({"text": "🎨 Sans photo", "callback_data": f"PH0|{job_id}"})
     kb = {"inline_keyboard": [nums, autres]}
     texte = (f"{question}\nReel « {titre} »" if question else
              f"📸 Quelle photo en couverture du reel « {titre} » ?\nLe montage démarre dès ton choix (1 à 2 minutes).")

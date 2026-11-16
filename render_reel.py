@@ -21,6 +21,8 @@ FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
 KEY = os.environ["GEMINI_API_KEY"]
 TEXT_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-latest",
                "gemini-3.1-flash-lite"]  # Lite d'abord (Flash limité à 20 requêtes/jour) ; relais sur d'autres générations
+# Choix des photos : le modèle le plus exigeant d'abord (peu d'appels par jour), puis les modèles habituels
+RANK_MODELS = ["gemini-flash-latest", "gemini-3.6-flash"] + [m for m in TEXT_MODELS if m not in ("gemini-flash-latest", "gemini-3.6-flash")]
 TTS_MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]
 VOICE = os.environ.get("REEL_VOICE", "Charon")
 W, H, FPS = 1080, 1920, 30
@@ -464,11 +466,15 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         "AVANT le logo de l'institution qui décide. Elle doit correspondre exactement : un avion de ligne civil (jamais "
         "militaire) pour des billets d'avion, de préférence israélien (El Al, Israir, Arkia, Ben Gourion), à défaut un bel "
         "avion de ligne quelconque ; de même, une image prise en Israël plutôt qu'ailleurs, à défaut une image générique "
-        "réussie du secteur. Mieux vaut une image générique spectaculaire qu'aucune image du secteur.\n"
+        "réussie du secteur.\n"
         "- L'image doit montrer LE FAIT annoncé, pas seulement le secteur : pour des licenciements, un salarié qui part "
         "avec un carton ou des bureaux vides ; pour des salaires, une fiche de paie ou de l'argent. Une photo d'événement, "
         "de conférence, de festival, de concours ou de foule sans rapport direct avec le fait est EXCLUE. Pour un sujet "
-        "abstrait ou social, une belle photo d'agence (Unsplash, Pixabay, Pexels) qui illustre le fait est la meilleure option.\n"
+        "abstrait ou social, une belle photo d'agence (Unsplash, Pixabay, Pexels) n'est retenue que si elle montre clairement le fait.\n"
+        "- EXCLUS les images de banque d'images passe-partout qui ne montrent ni Israël ni le fait précis : engins de chantier "
+        "quelconques, graphiques boursiers flous, écrans de trading, poignées de main, pièces de monnaie étrangères, "
+        "personnes en costume anonymes. Elles font amateur. Sois très exigeant : mieux vaut proposer une ou deux images "
+        "fortes, voire aucune (une couverture graphique sera utilisée), qu'une image médiocre.\n"
         "- Exclus les jouets, figurines, Lego, dessins et mises en scène humoristiques : le ton du média est sérieux.\n"
         "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
         "accompagnés de longs textes.\n"
@@ -481,7 +487,7 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         parts.append({"text": f"Image {i} — {c['label'][:120]}"})
         parts.append({"inlineData": {"mimeType": c["mime"], "data": base64.b64encode(c["data"]).decode()}})
     try:
-        d = first_ok(TEXT_MODELS, {"contents": [{"parts": parts}],
+        d = first_ok(RANK_MODELS, {"contents": [{"parts": parts}],
                                    "generationConfig": {"responseMimeType": "application/json",
                                                         "responseJsonSchema": RANK_SCHEMA}})
         out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
@@ -838,8 +844,12 @@ def render(job, out):
     if job.get("mode") == "choix" and not (en_cours and job.get("autres")):  # 1er passage : l'administrateur choisit la photo sur Telegram
         vus = (saved or {}).get("photo_vus", []) if job.get("autres") else []
         cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, bool(job.get("autres")))
-        if not cands and not job.get("autres"):  # photo obligatoire : recherche élargie, puis sans filtre
-            cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, True, True)
+        if not cands and not job.get("autres"):  # recherche élargie, avec le même classement exigeant
+            cands = cover_candidates(plan.get("entite") or {}, job.get("caption", ""), 4, vus, True)
+        if not cands and not job.get("autres") and not info:  # rien à la hauteur : couverture graphique, sans photo
+            PC.send_text(f"🎨 Aucune photo à la hauteur pour « {job.get('titre', '')} » : "
+                         "je monte le reel avec la couverture graphique (1 à 2 minutes).")
+            job["photo"] = 0
         if info and info.get("photo") and not job.get("autres"):  # portrait : la photo de la couverture en 1er choix
             try:
                 with urllib.request.urlopen(urllib.request.Request(info["photo"], headers=UA), timeout=40) as r:

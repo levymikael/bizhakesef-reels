@@ -76,8 +76,15 @@ def _flatten(data, mime):
 def _tg(method, fields, files=None):
     url = f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN'].strip()}/{method}"
     body, ctype = _multipart(fields, files or {})
-    with urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type": ctype}), timeout=150) as r:
-        return json.load(r)
+    for essai in range(3):  # Telegram renvoie parfois 502/504 ou ne répond pas : on réessaie
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type": ctype}), timeout=150) as r:
+                return json.load(r)
+        except Exception as e:
+            code = getattr(e, "code", None)
+            if essai == 2 or (code is not None and code < 500):
+                raise
+            time.sleep(8)
 
 
 def send_choice(job_id, titre, cands, question=None, sans_montage=False):

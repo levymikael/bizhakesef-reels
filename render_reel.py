@@ -648,7 +648,7 @@ def etape_montage(job, saved, PC):
         vus = [c["url"] for c in m["cands"][e]] + m.get("vus", [])
         cands = candidats_acteur(acteurs[e], ctx, vus)
         if not cands:
-            PC.send_text(f"🤷 Pas d'autre image pour {acteurs[e]['nom']}. Choisis parmi les précédentes.")
+            PC.send_text(f"🤷 Pas d'autre image pour {acteurs[e]['nom']} (reel « {job.get('titre', '')} »). Choisis parmi les précédentes.")
             return {"choix": 0}
         m["vus"] = vus; m["cands"][e] = [{k: c.get(k) for k in CLES} for c in cands]
         PC.save_plan(job["id"], saved)
@@ -671,7 +671,7 @@ def etape_montage(job, saved, PC):
         cands = [_telecharger(c) for c in m["cands"][e]]
         PC.send_choice(job["id"], job.get("titre", ""), cands, question=_question(acteurs, e), sans_montage=True)
         return {"choix": len(cands)}
-    PC.send_text("🧩 Images retenues : je monte la couverture puis le reel (1 à 2 minutes).")
+    PC.send_text(f"🧩 Images retenues pour « {job.get('titre', '')} » : je monte la couverture puis le reel (1 à 2 minutes).")
     mont = compose_montage([(a, _telecharger(c)) for a, c in zip(acteurs, m["choix"])], job["id"])
     saved["montage"] = None
     saved["photo_candidats"] = [{k: mont.get(k) for k in CLES}]
@@ -921,7 +921,7 @@ def render(job, out):
             PC.send_choice(job["id"], job.get("titre", ""), cands)
             return {"choix": len(cands), "verification_photos": PHOTO_LOG}
         if job.get("autres"):  # rien de nouveau : on le dit, les boutons précédents restent valables
-            PC.send_text("🤷 Je n'ai pas trouvé d'autres photos convenables. Choisis parmi les précédentes.")
+            PC.send_text(f"🤷 Pas d'autres photos convenables pour « {job.get('titre', '')} ». Choisis parmi les précédentes.")
             return {"choix": 0}
     fs = job.get("scene_maj")  # actualisation : la scène 2 affiche et dit le cours en direct, quoi que l'IA ait proposé
     if fs and len(plan["scenes"]) > 2:

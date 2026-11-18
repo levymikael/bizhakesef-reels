@@ -1,0 +1,38 @@
+name: Veille Bizhakesef
+
+# Veille quotidienne (remplace les scénarios Make « veille », pour économiser les crédits Make).
+# Cron en UTC : deux déclenchements pour couvrir l'heure d'été et d'hiver ; le script (--garde) ne garde
+# que celui qui tombe à l'heure prévue en Israël, une seule fois par jour.
+#  - semaine : dimanche à vendredi, 8 h ; motsaé Shabbat : samedi, 21 h
+on:
+  schedule:
+    - cron: "0 5,6 * * 0-5"
+    - cron: "0 18,19 * * 6"
+  repository_dispatch:
+    types: [veille]
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Veille programmée
+        if: github.event_name == 'schedule'
+        run: |
+          if [ "$(TZ=Asia/Jerusalem date +%u)" = "6" ]; then python veille.py shabbat --garde; else python veille.py semaine --garde; fi
+      - name: Veille à la demande
+        if: github.event_name == 'repository_dispatch'
+        run: python veille.py ${{ github.event.client_payload.edition || 'semaine' }}
+      - name: Alerte en cas d'échec
+        if: failure()
+        run: |
+          curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="${ADMIN_CHAT_ID}" \
+            --data-urlencode text="❌ La veille du jour a échoué (GitHub Actions). Envoie-moi directement un lien d'article."

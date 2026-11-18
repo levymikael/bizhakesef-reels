@@ -99,7 +99,12 @@ def send_choice(job_id, titre, cands, question=None, sans_montage=False):
     if len(media) == 1:
         _tg("sendPhoto", {"chat_id": chat, "caption": media[0]["caption"]}, {"photo": files["p0"]})
     else:
-        _tg("sendMediaGroup", {"chat_id": chat, "media": json.dumps(media)}, files)
+        try:
+            _tg("sendMediaGroup", {"chat_id": chat, "media": json.dumps(media)}, files)
+        except Exception as e:  # album refusé (504 de Telegram) : les photos une par une, plus légères à envoyer
+            print("album refusé, envoi photo par photo :", e)
+            for i, m in enumerate(media):
+                _tg("sendPhoto", {"chat_id": chat, "caption": m["caption"]}, {"photo": files[f"p{i}"]})
     nums = [{"text": f"{i + 1}", "callback_data": f"PH{i + 1}|{job_id}"} for i in range(len(cands))]
     autres = [{"text": "🔁 Autres photos", "callback_data": f"PHX|{job_id}"}]
     if sans_montage:

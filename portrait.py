@@ -32,6 +32,15 @@ PROGRAMME = [
 ]
 RESERVE = ["Shlomo Kramer", "Yitzhak Tshuva", "Ziv Aviram"]  # si un article est trop maigre
 
+# Faits récents absents de Wikipédia, relevés dans la presse (citations exactes, source et date) : ajoutés à l'article.
+COMPLEMENTS = {
+    "Omri Casspi": """Globes, 2 Dec 2024: "Omri Casspi closes $60m Swish Ventures seed fund". "Casspi is leaving the Sheva fund, which he cofounded with David Citron, and is focusing on his new venture capital fund Swish Ventures." "Sheva will end operations after investing in eight startups."
+Globes, 11 Dec 2025: "Omri Casspi closes $100m Swish Opportunity Fund". The Sheva fund was founded "in 2022 with David Citron for $35 million". EON "raised $300 million last week at a valuation of $4 billion."
+Globes, 3 Sep 2026: "Swish Ventures was founded in early 2025 by Casspi, the fund's founder and sole managing partner." Casspi "announced the closing of Swish Ventures $250 million third fund"; "the firm's assets under management have grown to about $800 million." "Since its founding, Swish Ventures has invested in 20 companies, eight of which have become unicorns, with the combined valuation of its portfolio companies exceeding $60 billion." Portfolio: "Cognition AI, Applied Compute, EON, Wonderful, Upwind, Long Lake, Glow, Tenzai, PointFive, Irregular and Turnout."
+Calcalist (Ctech), 3 Sep 2026: Wonderful "raised $550 million on Wednesday at a $5 billion valuation"; Upwind "raised $300 million at a $3.8 billion valuation"; Cognition is "currently raising capital at a valuation of $47 billion".
+Note: no sale or IPO of a Swish Ventures portfolio company has been reported; do not describe any exit.""",
+}
+
 PROMPT = """Tu es le rédacteur en chef de @bizhakesef, un média Instagram d'information en français sur l'économie israélienne. Ton : factuel, précis, neutre, sans sensationnalisme, sans flatterie ni critique, sans tutoiement, sans question au lecteur.
 
 Tu prépares un post de la série « Portrait » : le parcours d'une personnalité israélienne du monde des affaires, à partir de son article Wikipédia ci-dessous (en anglais ou en hébreu). Le lecteur doit apprendre en 30 secondes qui est cette personne, ce qu'elle a construit et ce qui rend son parcours remarquable.
@@ -53,7 +62,7 @@ La légende (`caption`), 400 à 900 caractères, sans hashtags :
 - Première ligne : « Portrait : » suivi du nom et du fait le plus marquant de son parcours, 125 caractères maximum.
 - Deux ou trois paragraphes courts : le parcours, puis ce qu'il représente pour l'économie israélienne. Un ou deux emojis sobres.
 - Puis une ligne d'appel : « ✉️ Envoyez ce post à quelqu'un qui … », en nommant le public que ce parcours inspirera ou intéressera (par exemple « qui rêve de créer son entreprise en Israël », « qui fait ses courses chez Rami Levy »).
-- Puis « Suivez @bizhakesef : un portrait chaque jeudi. », puis « 📰 Source : Wikipédia ».
+- Puis « Suivez @bizhakesef : un portrait chaque jeudi. », puis « 📰 Source : Wikipédia » (« 📰 Sources : Wikipédia, Globes, Calcalist » quand un complément de presse est fourni).
 
 Autres champs : `hashtags` 3 à 5, du plus spécifique au plus large, toujours #EconomieIsraelienne et #Portrait ; `verification` : une entrée par chiffre ou date, « <chiffre> ← <extrait exact de l'article, dans sa langue> » ; `format_recommande` "reel" ; `interet_grand_public` : note de 1 à 5 suivie d'un tiret et d'une raison de 10 mots maximum (5 : personne connue de tout Israël ou d'une marque du quotidien, 3 : connue du monde des affaires, 1 : peu connue) ; `source_nom` « Wikipédia » ; `categorie` « PORTRAIT » ; `raison_si_non_pertinent` vide si pertinent.
 
@@ -125,7 +134,11 @@ def rediger(sujet, schema):
         return titre, None, url
     consigne = ""
     for essai in range(3):  # contrôle : titre de couverture court, 5 faits, des chiffres plutôt que des dates
-        body = {"contents": [{"parts": [{"text": PROMPT.replace("{titre}", titre) + texte + consigne}]}],
+        compl = COMPLEMENTS.get(sujet, "")
+        if compl:  # la carrière récente, absente de Wikipédia, compte autant que l'article
+            compl = ("\n\nCOMPLÉMENT DE PRESSE (faits récents absents de Wikipédia, à utiliser comme l'article et à mettre en avant "
+                     "dans les derniers faits ; source à citer dans la légende) :\n" + compl)
+        body = {"contents": [{"parts": [{"text": PROMPT.replace("{titre}", titre) + texte + compl + consigne}]}],
                 "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": schema}}
         d = R.first_ok(R.TEXT_MODELS, body)
         out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))

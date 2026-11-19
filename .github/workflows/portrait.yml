@@ -1,9 +1,10 @@
 name: Portrait Bizhakesef
 
-# Chaque mercredi vers 9 h 30 (heure d Israël) : le portrait programmé arrive sur Telegram, à valider comme un article.
+# Mercredi et vendredi vers 9 h 30 (heure d Israël) : le portrait programmé arrive sur Telegram, à valider comme un article.
 on:
   schedule:
-    - cron: "30 6 * * 3"
+    - cron: "30 6 * * 3"   # mercredi, pour le jeudi
+    - cron: "30 6 * * 5"   # vendredi, pour le dimanche
   workflow_dispatch:
   repository_dispatch:
     types: [portrait]

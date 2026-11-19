@@ -146,7 +146,9 @@ def main():
     sujets = [s for s in sujets if s["url"].strip().startswith("http") and len(s["url"].strip()) < 600]
     PC.send_text(f"🗞️ Veille du {now:%d/%m/%Y} : {len(sujets)} sujets proposés.\n"
                  "Touche « Créer le carrousel » sous ceux que tu veux traiter.")
-    sujets = [verifier(s) for s in sujets]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=5) as ex:  # en parallèle : Gemini saturé peut faire attendre chaque appel 4 min
+        sujets = list(ex.map(verifier, sujets))
     sujets_envoyer(sujets)
     etat["urls"] = (etat["urls"] + [s["url"].strip() for s in sujets])[-400:]
     etat["jours"] = (etat["jours"] + [jour])[-30:]

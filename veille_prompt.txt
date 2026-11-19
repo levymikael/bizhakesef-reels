@@ -12,6 +12,7 @@ Les flux contiennent aussi des chaînes Telegram en hébreu, de médias et d'ana
 
 - L'économie ou la finance israélienne est le cœur du sujet. Un sujet politique, sécuritaire ou diplomatique n'est retenu que si l'article porte sur son impact économique.
 - Préfère les informations récentes, publiées dans les dernières {FENETRE}, et les faits chiffrés : résultats d'entreprise, levées de fonds, rachats, décisions de la Banque d'Israël, statistiques officielles, mouvements de marché, grands contrats, immobilier.
+- À importance égale, préfère les sujets qui parlent au grand public francophone : prix et coût de la vie, shekel, emploi, marques et entreprises connues de tous (El Al, Teva, Rami Levy, Strauss…), grands rachats, personnalités. Les résultats trimestriels techniques et les statistiques pour initiés passent après.
 - Varie les rubriques quand c'est possible : pas cinq sujets tech si un sujet de marché ou de macroéconomie est important.
 - Varie les sources : 2 sujets au maximum provenant du même média (Globes, Ynet, Geektime, Ctech, une même chaîne Telegram…), et au moins 3 médias ou auteurs différents dans la sélection quand c'est possible. Un sujet repéré chez un média déjà retenu peut être pris chez un autre média qui le couvre aussi. Les chaînes Telegram et les blogs comptent comme des sources à part entière.
 - Un même événement couvert par plusieurs médias ne compte qu'une fois. Garde l'article le plus complet.

@@ -14,17 +14,17 @@ from zoneinfo import ZoneInfo
 
 import photo_choice as PC
 
-FEEDS = [
+FEEDS = [  # Substack bloque GitHub (403) : lu via le relais r.jina.ai
     "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1725",
     "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=585",
     "https://www.ynet.co.il/Integration/StoryRss6.xml",
     "https://www.geektime.co.il/feed/",
     "https://r.jina.ai/https://www.calcalistech.com/ctechnews",
-    "https://yaelleifrah.substack.com/api/v1/archive?sort=new&limit=5",
-    "https://israelinvestmentreport.substack.com/api/v1/archive?sort=new&limit=5",
-    "https://israeluncovered.substack.com/api/v1/archive?sort=new&limit=5",
-    "https://steveornstein.substack.com/api/v1/archive?sort=new&limit=5",
-    "https://kevich.substack.com/api/v1/archive?sort=new&limit=5",
+    "https://r.jina.ai/https://yaelleifrah.substack.com/api/v1/archive?sort=new&limit=5",
+    "https://r.jina.ai/https://israelinvestmentreport.substack.com/api/v1/archive?sort=new&limit=5",
+    "https://r.jina.ai/https://israeluncovered.substack.com/api/v1/archive?sort=new&limit=5",
+    "https://r.jina.ai/https://steveornstein.substack.com/api/v1/archive?sort=new&limit=5",
+    "https://r.jina.ai/https://kevich.substack.com/api/v1/archive?sort=new&limit=5",
     "https://t.me/s/calcalistcapitalmarkets",
     "https://t.me/s/globesnews",
     "https://t.me/s/TheMarkerOnline",

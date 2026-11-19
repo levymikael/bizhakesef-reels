@@ -1,13 +1,9 @@
 name: Veille Bizhakesef
 
-# Veille quotidienne (remplace les scénarios Make « veille », pour économiser les crédits Make).
-# Cron en UTC : deux déclenchements pour couvrir l'heure d'été et d'hiver ; le script (--garde) ne garde
-# que celui qui tombe à l'heure prévue en Israël, une seule fois par jour.
-#  - semaine : dimanche à vendredi, 8 h ; motsaé Shabbat : samedi, 21 h
+# Veille quotidienne (remplace la veille faite dans Make, pour économiser les crédits Make).
+# Déclenchée à l'heure exacte par les scénarios Make « veille » (un seul appel, 1 crédit) : le cron de GitHub
+# part avec des heures de retard. Semaine : dimanche à vendredi, 8 h ; motsaé Shabbat : samedi, 21 h.
 on:
-  schedule:
-    - cron: "0 5,6 * * 0-5"
-    - cron: "0 18,19 * * 6"
   repository_dispatch:
     types: [veille]
 
@@ -24,10 +20,6 @@ jobs:
       CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
     steps:
       - uses: actions/checkout@v4
-      - name: Veille programmée
-        if: github.event_name == 'schedule'
-        run: |
-          if [ "$(TZ=Asia/Jerusalem date +%u)" = "6" ]; then python veille.py shabbat --garde; else python veille.py semaine --garde; fi
       - name: Veille à la demande
         if: github.event_name == 'repository_dispatch'
         run: python veille.py ${{ github.event.client_payload.edition || 'semaine' }}

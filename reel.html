@@ -91,6 +91,17 @@ body.serie-portrait { --blue: #F2C14E; --blue2: #0B1B3F; --ink: #FFFFFF; --muted
 .serie-portrait .segs, .serie-portrait .brand, .serie-portrait .band { z-index: 2; }
 
 /* ===== Série LE SAVIEZ-VOUS ? : fond crème, jaune et grand « ? » ===== */
+/* Actualité avec une vraie photo (pas un logo) : couverture plein écran, comme le portrait, qui retient mieux */
+.photo-pleine .ph { left: 0; top: 0; width: 1080px; height: 1330px; margin-left: 0; }
+.photo-pleine .ph .clip { inset: 0; border-radius: 0; box-shadow: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent 99%); mask-image: linear-gradient(180deg, #000 62%, transparent 99%); }
+.photo-pleine .ph .clip::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.8) 0%, rgba(255,255,255,0) 16%); }
+.photo-pleine .ph svg.ring, .photo-pleine .ph .name, .photo-pleine .credit { display: none; }
+.photo-pleine #s0 { z-index: 0; }
+.photo-pleine #s0 .kicker, .photo-pleine #s0 .title, .photo-pleine #s0 .sticker { z-index: 3; }
+.photo-pleine #s0 .kicker { top: 1080px; }
+.photo-pleine .segs, .photo-pleine .brand, .photo-pleine .band { z-index: 2; }
 body.serie-savoir { --soft: #FFFFFF; }
 .serie-savoir, .serie-savoir #stage { background: #FFF7DE; }
 .serie-savoir .star { display: none; }
@@ -129,6 +140,7 @@ function titleSize(s, base) {
 }
 
 document.body.className = "serie-" + (DATA.serie || "actu");
+if ((DATA.serie || "actu") === "actu" && DATA.photo && DATA.photo.src && !DATA.photo.logo) document.body.classList.add("photo-pleine");
 const stage = document.getElementById("stage");
 const S = DATA.scenes, N = S.length, T = DATA.total, CUTS = DATA.cuts, STARTS = [0, ...CUTS];
 

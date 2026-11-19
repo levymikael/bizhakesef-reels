@@ -35,5 +35,7 @@ if not T.startswith("IG"):
     p = get(f"https://graph.facebook.com/v24.0/{IG_ID}", fields="username,name,biography,website,followers_count,media_count")
     print("PROFIL", json.dumps(p, ensure_ascii=False))
     m = get(f"https://graph.facebook.com/v24.0/{IG_ID}/media", fields="timestamp,media_product_type,caption", limit=60)
+    ep = get(f"https://graph.facebook.com/v24.0/{IG_ID}/media", fields="timestamp,caption,is_pinned", limit=60)  # posts épinglés
+    print("EPINGLES", [((x.get("caption") or "").split(chr(10))[0][:50], x.get("timestamp", "")[:10]) for x in ep.get("data", []) if x.get("is_pinned")] if "data" in ep else ep)
     for x in m.get("data", []):
         print("POST", x.get("timestamp", "")[:10], x.get("media_product_type"), (x.get("caption") or "").split("\n")[0][:70])

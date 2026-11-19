@@ -272,8 +272,11 @@ PICK_SCHEMA = {"type": "object", "required": ["choix", "raison"],
                "properties": {"choix": {"type": "integer"}, "raison": {"type": "string"}}}
 
 
+SOURCES_MAX_S = 25  # temps maximal accordé à l'ensemble des banques d'images, puis aux téléchargements
+
+
 def _get_json(url, headers=None):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=headers or UA), timeout=30) as r:
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers or UA), timeout=15) as r:
         return json.load(r)
 
 
@@ -449,12 +452,23 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
                  lambda x=x: _pexels_cands(x, 4 if autres else 3), lambda x=x: _pixabay_cands(x, 4 if autres else 3),
                  lambda x=x: _unsplash_cands(x, 4 if autres else 3)]
     cands = []
-    with ThreadPoolExecutor(max_workers=10) as ex:
-        for fut in [ex.submit(j) for j in jobs]:
-            try:
-                cands += fut.result()
-            except Exception as e:
-                print("photo : source indisponible :", e, file=sys.stderr)
+    from concurrent.futures import wait
+    ex = ThreadPoolExecutor(max_workers=16)
+    futs = [ex.submit(j) for j in jobs]
+    finis, lents = wait(futs, timeout=SOURCES_MAX_S)  # une source trop lente est abandonnée (elles bloquaient jusqu'à 5 min)
+    if futs[0] in lents:  # Wikipédia (photo vérifiée par Gemini, souvent la meilleure) : 40 s de plus
+        wait([futs[0]], timeout=40)
+        finis, lents = {f for f in futs if f.done()}, {f for f in futs if not f.done()}
+    for fut in futs:
+        if fut not in finis:
+            continue
+        try:
+            cands += fut.result()
+        except Exception as e:
+            print("photo : source indisponible :", e, file=sys.stderr)
+    if lents:
+        print(f"photo : {len(lents)} recherche(s) abandonnée(s) après {SOURCES_MAX_S} s", file=sys.stderr)
+    ex.shutdown(wait=False, cancel_futures=True)
     def fkey(u):  # même fichier Wikimedia en plusieurs tailles = un seul candidat
         m = re.search(r"upload\.wikimedia\.org/wikipedia/[^/]+/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/]+)", u)
         return urllib.parse.unquote(m.group(1)).lower() if m else u
@@ -463,21 +477,26 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
 
     def dl(c):
         try:
-            with urllib.request.urlopen(urllib.request.Request(c["url"], headers=UA), timeout=40) as r:
+            with urllib.request.urlopen(urllib.request.Request(c["url"], headers=UA), timeout=15) as r:
                 data = r.read()
             if len(data) > 3000 and (data[:3] == b"\xff\xd8\xff" or data[:4] == b"\x89PNG"):
                 return {**c, "data": data, "mime": "image/png" if data[:4] == b"\x89PNG" else "image/jpeg"}
         except Exception as e:
             print("photo : téléchargement impossible :", c["url"][:80], e, file=sys.stderr)
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        cands = [c for c in ex.map(dl, cands) if c]
+    ex = ThreadPoolExecutor(max_workers=8)
+    futs = [ex.submit(dl, c) for c in cands]
+    finis, _ = wait(futs, timeout=SOURCES_MAX_S)
+    cands = [f.result() for f in futs if f in finis and f.result()]
+    ex.shutdown(wait=False, cancel_futures=True)
     cands = list({hashlib.md5(c["data"]).hexdigest(): c for c in reversed(cands)}.values())[::-1]
     if not cands:
         PHOTO_LOG.append({"nom": nom, "recherche": q, "candidats": [], "raison": "aucune image trouvée"})
         return []
 
-    voulu = {"entreprise": "le LOGO OFFICIEL ACTUEL de cette société (net, lisible), à défaut son produit phare ou son dirigeant en portrait",
-             "institution": "le LOGO ou l'EMBLÈME officiel de cette institution, à défaut le portrait de son dirigeant",
+    voulu = {"entreprise": "une VRAIE PHOTO exacte de cette société, qui s'affichera en plein écran : son dirigeant nommé, son produit "
+                           "phare, un de ses magasins, avions, navires ou usines en activité ; à défaut son LOGO OFFICIEL ACTUEL (net, lisible)",
+             "institution": "une VRAIE PHOTO exacte : le portrait de son dirigeant ou une scène qui montre le fait ; à défaut le LOGO "
+                            "ou l'EMBLÈME officiel de cette institution",
              "personne": "un PORTRAIT de cette personne, visage net et bien visible"}.get(
         typ, "une image concrète et parlante du sujet (billets pour une monnaie, grues pour l'immobilier, avion pour l'aérien)")
     parts = [{"text": (

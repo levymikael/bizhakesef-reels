@@ -3,7 +3,8 @@ name: Le saviez-vous ? Bizhakesef
 # Chaque dimanche vers 8 h 30 (heure d'Israël), pour le rendez-vous du lundi 7 h 30 : une proposition arrive sur Telegram, à valider comme un article.
 on:
   schedule:
-    - cron: "30 6 * * 0"
+    - cron: "30 6 * * 0"   # dimanche, pour le lundi
+    - cron: "30 6 * * 2"   # mardi, pour le mercredi
   workflow_dispatch:
   repository_dispatch:
     types: [saviez_vous]

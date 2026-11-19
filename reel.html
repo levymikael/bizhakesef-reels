@@ -164,7 +164,7 @@ function sceneHTML(s, i) {
     return `<div class="scene" id="s${i}">
       <div class="cta-logo a" data-k="pop">${STAR_W}</div>
       <div class="cta-name a" data-k="up" data-d=".25">BIZHAKESEF</div>
-      <div class="cta-sub a" data-k="up" data-d=".4">L'actualité économique d'Israël, en&nbsp;français</div>
+      <div class="cta-sub a" data-k="up" data-d=".4">L'économie israélienne en&nbsp;français, chaque&nbsp;jour</div>
       <div class="cta-btn a" data-k="pulse" data-d=".6">Suivre @bizhakesef</div></div>`;
   }
   if (i === 0) {
@@ -225,8 +225,9 @@ function anim(el, lt) {
 function render(t) {
   let i = 0;
   while (i < N - 1 && t >= STARTS[i + 1]) i++;
-  // La couverture est déjà presque en place dès la première image (accroche et miniature du reel)
-  const lt = t - STARTS[i] + (i === 0 ? .5 : 0), dur = (i < N - 1 ? STARTS[i + 1] : T) - STARTS[i];
+  // La couverture est entièrement en place dès la première image : titre complet, chiffre final (accroche et
+  // vignette du reel sur le profil, qu'Instagram prend sur la 1re image) ; le mouvement vient du zoom de la photo
+  const lt = t - STARTS[i] + (i === 0 ? 1.6 : 0), dur = (i < N - 1 ? STARTS[i + 1] : T) - STARTS[i];
   document.querySelectorAll(".scene").forEach((sc, j) => { sc.style.display = j === i ? "block" : "none"; });
   const sc = document.getElementById("s" + i);
   sc.querySelectorAll(".a").forEach(el => anim(el, lt));

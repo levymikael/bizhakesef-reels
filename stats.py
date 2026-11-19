@@ -63,7 +63,7 @@ def main():
         reel = m.get("media_product_type") == "REELS"
         met = "reach,views,likes,comments,saved,shares" + (",ig_reels_avg_watch_time" if reel else "")
         ins = g(f"{m['id']}/insights", metric=met)
-        p = {"date": m["timestamp"][:16], "type": m.get("media_product_type"), "titre": (m.get("caption") or "")[:70]}
+        p = {"id": m["id"], "date": m["timestamp"][:16], "type": m.get("media_product_type"), "titre": (m.get("caption") or "")[:70]}
         for x in ins.get("data", []):
             v = x["values"][0]["value"] if x.get("values") else x.get("total_value", {}).get("value")
             p[x["name"]] = round(v / 1000, 1) if x["name"] == "ig_reels_avg_watch_time" else v  # ms -> s

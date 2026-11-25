@@ -6,7 +6,7 @@ on:
     types: [render_reel]
 
 concurrency:
-  group: reels
+  group: reels-${{ github.event.client_payload.id }}  # un reel à la fois par post ; deux posts différents ne s'annulent plus
   cancel-in-progress: false
 
 jobs:

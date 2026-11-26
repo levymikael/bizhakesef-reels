@@ -37,7 +37,7 @@ jobs:
       - name: Préparer la commande
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-        run: printf '%s' "$PAYLOAD" > job.json && python -c "import json;j=json.load(open('job.json'));print(j['id'],len(j['slides']),'slides')"
+        run: printf '%s' "$PAYLOAD" > job.json && python prep_job.py job.json
       - name: Monter le reel
         run: python render_reel.py job.json reel.mp4
       - name: Envoyer la vidéo et prévenir Telegram (sauf si l'on attend le choix de la photo)

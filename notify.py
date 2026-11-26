@@ -7,6 +7,9 @@ Variables : CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, MA
 import hashlib, json, os, sys, time, urllib.request, uuid
 
 
+RELAIS = "https://bizhakesef-bot.levymikael.workers.dev/gh"
+
+
 def post_json(url, payload):
     req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -36,7 +39,19 @@ def tell_make(text):
     update = {"update_id": now, "message": {"message_id": 1, "date": now, "text": text,
                                             "from": {"id": chat, "is_bot": False, "first_name": "Reel"},
                                             "chat": {"id": chat, "type": "private"}}}
-    print(post_json(os.environ["MAKE_HOOK_URL"], update))
+    # Passe par le relais Cloudflare (gratuit, sans crédit Make) ; Make en secours si le relais ne répond pas.
+    # Authentification : SHA-256 de l'URL du webhook Make, que le relais connaît aussi.
+    hook = os.environ["MAKE_HOOK_URL"]
+    try:
+        req = urllib.request.Request(RELAIS, data=json.dumps(update).encode(), headers={
+            "Content-Type": "application/json", "User-Agent": "bizhakesef-github/1.0",
+            "X-Relais": hashlib.sha256(hook.encode()).hexdigest()})
+        with urllib.request.urlopen(req, timeout=90) as r:
+            print("relais :", r.read().decode())
+            return
+    except Exception as e:
+        print("relais indisponible, envoi direct à Make :", e)
+    print(post_json(hook, update))
 
 
 if __name__ == "__main__":

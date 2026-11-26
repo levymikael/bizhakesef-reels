@@ -38,15 +38,18 @@ Les {N} images jointes sont les slides du carrousel, dans l'ordre. Le reel aura 
 Pour chaque scène :
 - `phrase` : la phrase de voix off lue pendant la scène, 5 à 9 mots (limite stricte : le reel entier doit durer moins de 22 secondes, car les spectateurs décrochent vite), courte et rythmée. Ton de présentateur de journal économique : factuel, neutre, pas de tutoiement, pas de question. Nombres en toutes lettres comme ils se prononcent (« quatre virgule quatre milliards de dollars »). La phrase 1 est une accroche forte avec le fait ou le chiffre le plus marquant.
 - `kicker` : sur-titre de 1 à 3 mots en majuscules (ex. « RÉSULTATS », « CHIFFRE D'AFFAIRES »).
-- `titre` : le message de la scène, 50 caractères maximum, nombres écrits en chiffres (« 237,8 Md$ », jamais en lettres), le shekel écrit ₪ (« 6 Md₪ », jamais NIS). Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
+- `titre` : le message de la scène, 50 caractères maximum, sous forme de PHRASE COMPLÈTE avec un sujet et un verbe conjugué (« L'action tombe à 41 ₪ », « La valeur de la banque ne change pas »), jamais un groupe nominal (« Chute du nominal unitaire », « Capitalisation boursière stable », « Tendance annuelle négative » sont interdits). Aucun qualificatif absent de la source (« historique », « record », « inédit », « massif »), nombres écrits en chiffres (« 237,8 Md$ », jamais en lettres), le shekel écrit ₪ (« 6 Md₪ », jamais NIS). Ne recopie pas le texte de la slide : résume-le. Jamais un libellé générique comme « À retenir » ou « Baisse » : le titre énonce l'information elle-même.
 - `texte` : précision utile en 85 caractères maximum, qui apporte un fait de plus (ne répète ni le titre ni le chiffre), ou "". Ici, les nombres s'écrivent en chiffres (« 185 M$ », « 1,82 $ »).
 - `chiffre` : le chiffre clé tel qu'affiché, court, avec unité et signe (ex. « 670 M$ », « -45 % », « +3,2 % »), ou "".
 - `tendance` : « hausse », « baisse » ou « neutre ».
+- `garder` : « oui » si la scène apporte un FAIT CONCRET nouveau (un chiffre, une date, un nom, une décision précise) ; « non » si elle n'apporte qu'une formule générale ou un commentaire (« Un tournant pour le secteur », « Une décision très commentée ») ou répète une autre scène. Toujours « oui » pour la scène 1 et la scène de fin.
+- `avant` : "" sauf pour la scène 1 (voir plus bas).
 - `entite_wikipedia` : si la scène parle surtout d'une autre société ou personne que l'entité principale, son titre exact sur Wikipédia en anglais ; sinon "".
 La scène 1 est l'accroche, décisive : la plupart des spectateurs décident de rester ou de passer en moins de 3 secondes. Pour elle seule :
 - `chiffre` obligatoire dès que l'information comporte un nombre (montant, pourcentage, prix, record, date) : le plus frappant.
-- `titre` : le fait et sa conséquence concrète, jamais un simple sujet. « Taxe sur les billets d'avion » est interdit ; « Une nouvelle taxe sur chaque billet d'avion » convient.
-- `kicker` : le sujet précis en 1 à 3 mots (« BILLETS D'AVION », « EL AL », « SHEKEL »), jamais une rubrique (« MACRO », « TECH », « ENTREPRISES », « MARCHÉS »).
+- `titre` : le fait et sa conséquence concrète, jamais un simple sujet. « Taxe sur les billets d'avion » est interdit ; « Une nouvelle taxe sur chaque billet d'avion » convient. Quand l'information comporte deux nombres qui se comparent (avant et après, demandé et obtenu, prévu et réalisé, un chiffre et son record précédent), montre ce CONTRASTE : les deux nombres vont dans `avant` et `chiffre`, qui s'affichent en grand (« 30 ₪ → 45 ₪ ») ; c'est la formule qui retient le mieux (« de 38 m² à 6 Md₪ »). Les deux nombres ont la même unité et mesurent la même chose. Le titre dit alors ce que ce contraste signifie, sans répéter ces deux nombres et sans rien changer au sens de la source (qui gagne, qui perd, qui paie) : pour un abonnement qui passe de 30 à 45 ₪, « L'abonnement augmente de moitié ». Dans tous les cas, le titre ne répète jamais le nombre de `chiffre`.
+- `avant` : le nombre de comparaison quand il existe (« 205 ₪ », « 2,5 M₪ »), écrit comme `chiffre`, qui reste la valeur d'arrivée ou la plus frappante ; sinon "". Les deux nombres doivent figurer dans les slides ou la légende.
+- `kicker` : le sujet précis en 1 à 3 mots (« BILLETS D'AVION », « EL AL », « SHEKEL »), jamais une rubrique (« MACRO », « TECH », « ENTREPRISES », « MARCHÉS », « BOURSE »). Quand l'information porte sur une société ou une personne, c'est son nom (« MIZRAHI TEFAHOT »), et le titre la nomme aussi.
 - `phrase` : 5 à 9 mots, qui commence directement par le fait ou le chiffre, sans préambule (« Israël envisage », « Selon », « Voici »).
 La dernière scène est la scène de fin : `phrase` exactement « Suivez Bizhakesef pour l'actualité économique d'Israël. », les autres champs vides.
 
@@ -61,8 +64,8 @@ Uniquement les faits des slides et de la légende. Chaque nombre, dit ou affich�
 LÉGENDE :
 """
 SCENE = {"type": "object", "properties": {k: {"type": "string"} for k in
-         ("phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia")},
-         "required": ["phrase", "kicker", "titre", "texte", "chiffre", "tendance", "entite_wikipedia"]}
+         ("phrase", "kicker", "titre", "texte", "chiffre", "avant", "tendance", "garder", "entite_wikipedia")},
+         "required": ["phrase", "kicker", "titre", "texte", "chiffre", "avant", "tendance", "garder", "entite_wikipedia"]}
 SCHEMA = {"type": "object", "required": ["entite", "acteurs", "scenes"], "properties": {
     "entite": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo", "theme_photo"],
                "properties": {"nom": {"type": "string"}, "wikipedia": {"type": "string"}, "type": {"type": "string"},
@@ -71,6 +74,8 @@ SCHEMA = {"type": "object", "required": ["entite", "acteurs", "scenes"], "proper
     "acteurs": {"type": "array", "items": {"type": "object", "required": ["nom", "wikipedia", "type", "recherche_photo"],
                 "properties": {k: {"type": "string"} for k in ("nom", "wikipedia", "type", "recherche_photo", "site", "illustration")}}},
     "scenes": {"type": "array", "items": SCENE}}}
+FAITS_MAX = 3  # actualité : couverture, 3 éléments de la news, fin (15 à 20 secondes)
+FAITS_MIN = 3
 
 
 def gemini(model, body):
@@ -123,7 +128,7 @@ def first_ok(models, body):
     raise RuntimeError(f"Gemini indisponible : {last}")
 
 
-def analyse(caption, slides, maj=""):
+def analyse(caption, slides, maj="", actu=False):
     prompt = PROMPT.replace("{N}", str(len(slides)))
     if maj:  # actualisation de dernière minute (cours en direct) : seule exception à la règle des chiffres des slides
         prompt = prompt.replace("LÉGENDE :", "MISE À JOUR PRIORITAIRE, qui l'emporte sur les slides : " + maj + "\n\nLÉGENDE :")
@@ -149,26 +154,110 @@ def analyse(caption, slides, maj=""):
         if src:
             sc[0].update(chiffre=src["chiffre"], tendance=src.get("tendance", "neutre"))
     norm = lambda c: re.sub(r"\s+", "", (c or "")).lower()
-    if len(sc) > 4 and sc[0].get("chiffre"):  # une scène qui répète le chiffre de l'accroche est retirée (reel plus court)
+    RUBRIQUES = {"BOURSE", "MARCHÉS", "MARCHES", "MACRO", "TECH", "ENTREPRISES", "ÉCONOMIE", "ECONOMIE", "FINANCE", "FINANCES",
+                 "ACTUALITÉ", "INDUSTRIE", "BANQUES", "SOCIÉTÉ", "ACTION", "VALORISATION"}
+    if actu:
+        # Contraste avant → après : s'il a été mis sur une autre scène, il passe sur la couverture (accroche)
+        if not sc[0].get("avant"):
+            k = next((k for k in range(1, len(sc) - 1) if sc[k].get("avant") and sc[k].get("chiffre")), None)
+            if k is not None:
+                sc[0].update(chiffre=sc[k]["chiffre"], avant=sc[k]["avant"], tendance=sc[k].get("tendance", "neutre"))
+        # Les deux nombres doivent avoir la même unité (« 205 ₪ → 41 ₪ », jamais « 205 ₪ → 1 pour 5 »)
+        unite = lambda c: re.sub(r"[\d\s  .,+\-−]", "", c or "").lower()
+        if sc[0].get("avant") and unite(sc[0]["avant"]) != unite(sc[0].get("chiffre")):
+            k = next((k for k in range(1, len(sc) - 1) if unite(sc[k].get("chiffre")) == unite(sc[0]["avant"])), None)
+            if k is not None:
+                sc[0].update(chiffre=sc[k]["chiffre"], tendance=sc[k].get("tendance", "neutre"))
+            else:
+                sc[0]["avant"] = ""
+        # Le nom de la société ou de la personne est visible sur la couverture
+        ent = out.get("entite") or {}
+        nom = (ent.get("nom") or "").strip()
+        if nom and ent.get("type") in ("entreprise", "personne", "institution"):
+            if sc[0].get("kicker", "").strip().upper() in RUBRIQUES or nom.split()[0].lower() not in sc[0].get("titre", "").lower():
+                sc[0]["kicker"] = nom.upper()
+    if actu:  # actualité : on retire les scènes sans fait concret et les doublons de l'accroche, 3 faits au plus
+        accroche = {norm(sc[0].get("chiffre")), norm(sc[0].get("avant"))} - {""}
+        doublon = lambda k: bool(sc[k].get("chiffre")) and norm(sc[k].get("chiffre")) in accroche
+        garde = lambda k: (sc[k].get("garder") or "oui").strip().lower() != "non"
+        ks = [k for k in range(1, len(sc) - 1) if not doublon(k)]
+        # Priorité : faits chiffrés, puis faits concrets sans chiffre, puis le reste ; au moins FAITS_MIN éléments
+        # de la news quand les slides en ont (un reel de 10 s avec 2 faits était trop maigre), au plus FAITS_MAX
+        rang = lambda k: (not garde(k), not sc[k].get("chiffre"))
+        faits = sorted(ks, key=rang)
+        n_ok = sum(1 for k in faits if garde(k))
+        faits = sorted(faits[:max(min(n_ok, FAITS_MAX), min(FAITS_MIN, len(faits)))])  # ordre des slides conservé
+        out["retire"] = [k for k in range(1, len(sc) - 1) if k not in faits]
+        sc = out["scenes"] = [s for k, s in enumerate(sc) if k not in out["retire"]]
+    elif len(sc) > 4 and sc[0].get("chiffre"):  # une scène qui répète le chiffre de l'accroche est retirée (reel plus court)
         out["retire"] = [k for k in range(1, len(sc) - 1) if norm(sc[k].get("chiffre")) == norm(sc[0]["chiffre"])][:1]
         sc = out["scenes"] = [s for k, s in enumerate(sc) if k not in out["retire"]]
-    shorten(sc)
+    if actu and len(sc) > 2:  # la couverture affiche le chiffre de l'accroche validée (1re ligne de la légende)
+        chif = lambda c: re.sub(r"\D", "", c or "")
+        tete = re.sub(r"[\s  .]", "", caption.strip().split("\n")[0])
+        if sc[0].get("chiffre") and not sc[0].get("avant") and chif(sc[0]["chiffre"]) not in re.sub(r"\D", "", tete):
+            nums = re.findall(r"\d+(?:,\d+)?", tete)  # nombres de l'accroche, espaces retirés (« 50000 », « 2,5 »)
+            k = next((k for k in range(1, len(sc) - 1) if len(chif(sc[k].get("chiffre"))) >= 2  # jamais un « 5 » isolé
+                      and chif(sc[k]["chiffre"]) in {chif(x) for x in nums}), None)
+            if k is not None:  # échange des deux scènes (chiffre, titre, texte, voix : jamais un chiffre sans son sens)
+                for f in ("chiffre", "tendance", "titre", "texte", "phrase"):
+                    sc[0][f], sc[k][f] = sc[k].get(f, ""), sc[0].get(f, "")
+                if sc[0].get("avant") and unite(sc[0]["avant"]) != unite(sc[0]["chiffre"]):
+                    sc[0]["avant"] = ""
+    if not sc[0].get("chiffre"):
+        sc[0]["avant"] = ""
+    ent = out.get("entite") or {}
+    nom = (ent.get("nom") or "").strip() if actu and ent.get("type") in ("entreprise", "personne", "institution") else ""
+    shorten(sc, relire=actu, nom=nom)
+    if nom and sc[0].get("titre") and not _cite(nom, sc[0]["titre"]):  # secours : le nom en tête du titre
+        t = sc[0]["titre"]
+        sc[0]["titre"] = f"{nom} : {t[0].lower()}{t[1:]}"
+    if actu:
+        verifier(sc, caption, nom)
     return out
+
+
+def _cite(nom, texte):
+    """Le texte nomme-t-il la société ou la personne (au moins le premier mot significatif de son nom) ?"""
+    mots = [m for m in _norm(nom) if len(m) > 1] or _norm(nom)
+    return bool(mots) and mots[0] in _norm(texte)
 
 
 LIMITS = {"titre": 50, "texte": 85, "kicker": 22}
 
 
-def shorten(scenes):
-    """À l'écran, il faut des textes courts : tout champ trop long est réécrit plus court par Gemini."""
+def shorten(scenes, relire=False, nom=""):
+    """À l'écran, il faut des textes courts : tout champ trop long est réécrit plus court par Gemini.
+    relire=True (actualité) : chaque titre est aussi relu, et réécrit en phrase complète s'il n'en est pas une.
+    nom : la société ou la personne du sujet, que le titre et la phrase de la couverture doivent nommer."""
     todo = [{"i": i, "champ": k, "max": m, "texte": s[k]} for i, s in enumerate(scenes)
-            for k, m in LIMITS.items() if len(s.get(k, "")) > m]
+            for k, m in LIMITS.items()
+            if len(s.get(k, "")) > m or (relire and k == "titre" and s.get(k) and i < len(scenes) - 1)]
+    if nom and scenes:  # la couverture nomme le sujet : sans le nom, le spectateur ne sait pas de qui on parle
+        for k, m in (("titre", LIMITS["titre"]), ("phrase", 70)):
+            if scenes[0].get(k) and not _cite(nom, scenes[0][k]):
+                todo = [t for t in todo if not (t["i"] == 0 and t["champ"] == k)]
+                todo.append({"i": 0, "champ": k, "max": m, "texte": scenes[0][k], "doit_nommer": nom})
+    gros = [c for c in (scenes[0].get("avant"), scenes[0].get("chiffre")) if c] if scenes else []
+    for t in todo:  # le titre de couverture ne répète pas les nombres affichés en grand au-dessus
+        if t["i"] == 0 and t["champ"] == "titre" and gros:
+            t["sans_nombres"] = gros
     if not todo:
         return _clean(scenes)
     body ={"contents": [{"parts": [{"text": (
-        "Raccourcis chaque texte sous sa longueur maximale en caractères (champ `max`), en français, "
-        "sans changer ni inventer aucun fait ni aucun chiffre. Style titre de journal, nombres en chiffres. "
-        "Réponds avec la même liste, où `texte` est raccourci.\n" + json.dumps(todo, ensure_ascii=False))}]}],
+        "Tu relis les textes à l'écran d'un reel d'information économique. Pour chaque élément, `texte` doit tenir "
+        "sous sa longueur maximale en caractères (champ `max`). Un `titre` doit être une PHRASE COMPLÈTE, avec un sujet "
+        "et un verbe conjugué (« El Al relève le prix de ses billets », « L'action tombe à 41 ₪ ») : un groupe "
+        "nominal ou une étiquette (« Hausse des tarifs aériens », « Résultats en baisse ») est "
+        "réécrit en phrase. Un texte déjà correct est renvoyé tel quel. En français, sans changer ni inventer aucun fait "
+        "ni aucun chiffre, sans changer qui fait quoi (qui gagne, qui perd, qui paie). Nombres en chiffres, sauf dans "
+        "une `phrase` (voix off), où ils restent en toutes lettres ; une `phrase` garde TOUS ses nombres et reste "
+        "courte (9 mots si possible, 12 au plus). Quand un élément a un champ `doit_nommer`, le texte "
+        "réécrit contient ce nom tel quel, comme sujet ou complément naturel de la phrase (pour « Teva » : « Les ventes "
+        "reculent de 4 % » devient « Les ventes de Teva reculent de 4 % »), toujours sans changer qui fait quoi. Quand un élément a un champ `sans_nombres`, ces nombres s'affichent "
+        "déjà en grand : le texte réécrit ne les contient pas, il dit ce qu'ils signifient (« L'abonnement "
+        "augmente de moitié » plutôt que « L'abonnement passe à 45 ₪ »). "
+        "Réponds avec la même liste, où `texte` est corrigé.\n" + json.dumps(todo, ensure_ascii=False))}]}],
         "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": {
             "type": "array", "items": {"type": "object", "required": ["i", "champ", "texte"], "properties": {
                 "i": {"type": "integer"}, "champ": {"type": "string"}, "texte": {"type": "string"}}}}}}
@@ -176,10 +265,100 @@ def shorten(scenes):
         d = first_ok(TEXT_MODELS, body)
         txt = "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought"))
         for r in json.loads(txt):
-            if 0 <= r["i"] < len(scenes) and r["champ"] in LIMITS:
-                scenes[r["i"]][r["champ"]] = r["texte"]
+            if 0 <= r["i"] < len(scenes) and (r["champ"] in LIMITS or (r["champ"] == "phrase" and nom and r["i"] == 0)):
+                _remplace(scenes[r["i"]], r["champ"], r["texte"])
     except Exception as e:
         print("raccourci", e, file=sys.stderr)
+    _clean(scenes)
+
+
+NOMBRES_DITS = r"\d+|zéro|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|vingt|trente|quarante|cinquante|soixante|cent|cents|mille|million|millions|milliard|milliards|virgule|moitié|tiers|quart"
+
+
+def _nombres(t):
+    return set(re.findall(rf"\b(?:{NOMBRES_DITS})\b", (t or "").lower()))
+
+
+def _remplace(s, champ, neuf, garde_nombres=True):
+    """Une réécriture n'est retenue que si elle ne perd aucun nombre de la voix off et n'est pas vide."""
+    neuf = (neuf or "").strip()
+    if not neuf:
+        return
+    if garde_nombres and champ == "phrase" and not _nombres(s.get("phrase")) <= _nombres(neuf):
+        print("relecture écartée (nombre perdu) :", neuf, file=sys.stderr)
+        return
+    s[champ] = neuf
+
+
+VERIF_TEXTES = {"type": "object", "required": ["scenes"], "properties": {"scenes": {"type": "array", "items": {
+    "type": "object", "required": ["i", "titre", "texte", "phrase"], "properties": {
+        "i": {"type": "integer"}, "titre": {"type": "string"}, "texte": {"type": "string"}, "phrase": {"type": "string"}}}}}}
+
+
+def verifier(scenes, caption, nom=""):
+    """Dernière relecture, par le modèle le plus fiable : chaque scène est réécrite d'un bloc (titre, texte, voix)
+    autour de son chiffre affiché, qui ne bouge pas, puis contrôlée contre la légende. Une scène dont la réécriture
+    contient un nombre absent de la source, ou une couverture qui ne nomme plus le sujet, garde sa version d'origine."""
+    sc = [{"i": i, "kicker": s.get("kicker", ""), "chiffre_affiche": s.get("chiffre", ""), "titre": s.get("titre", ""),
+           "texte": s.get("texte", ""), "phrase": s.get("phrase", "")} for i, s in enumerate(scenes[:-1])]
+    if not sc:
+        return
+    prompt = (
+        "Tu es secrétaire de rédaction d'un média d'information économique en français. Voici la légende source d'un "
+        "article, puis les scènes d'un reel tiré de cet article. Chaque scène affiche en grand son `chiffre_affiche` "
+        "(qui ne change pas), avec un `titre` (phrase complète, sujet et verbe conjugué, 55 caractères au plus), un "
+        "`texte` secondaire (85 caractères au plus, un fait de plus, ou \"\") et une `phrase` de voix off (6 à 12 mots, "
+        "nombres en toutes lettres).\n"
+        "Renvoie TOUTES les scènes, chacune réécrite si nécessaire pour être EXACTE et COHÉRENTE :\n"
+        "- Le titre dit ce que représente le chiffre affiché de SA scène, selon la source (une somme réclamée n'est pas "
+        "une amende, une prévision n'est pas un résultat). Si la scène n'a pas de chiffre, le titre énonce son fait.\n"
+        "- La phrase dit la même information que le titre ; elle peut dire le chiffre affiché, jamais un autre nombre "
+        "attribué à autre chose.\n"
+        "- Aucun fait, nombre, qualificatif ou jugement absent de la source. Qui fait quoi, qui gagne, qui perd, qui "
+        "paie : exactement comme dans la source.\n"
+        "- Ton neutre de journal, pas de question, pas de tutoiement. Français correct (apostrophes, accords).\n"
+        "- Pas deux scènes qui disent la même chose.\n"
+        + (f"- Scène 0 (couverture) : le titre ET la phrase nomment « {nom} » ; le titre ne répète pas le chiffre "
+           "affiché, il en donne le sens ; la phrase commence directement par le fait.\n" if nom else
+           "- Scène 0 (couverture) : le titre ne répète pas le chiffre affiché, il en donne le sens.\n")
+        + "- La scène 0 dit le fait de l'ACCROCHE VALIDÉE par la rédaction (ci-dessous) : son titre en donne le sens "
+        "(ce que représente le chiffre affiché), sa phrase le dit avec le chiffre en toutes lettres.\n"
+        "- Un `texte` ne contient QUE des faits écrits dans la source ; à défaut, \"\" (jamais de contexte ajouté, "
+        "comme « contexte mitigé pour le secteur »).\n"
+        "- Le dernier fait d'un article (bilan, tendance) reste une phrase factuelle tirée de la source, sans formule "
+        "ajoutée (« tolérance zéro », « coup dur », « signal fort » sont interdits s'ils ne sont pas dans la source).\n"
+        "Une scène déjà juste est renvoyée telle quelle.\n\nACCROCHE VALIDÉE :\n" + caption.strip().split("\n")[0][:300]
+        + "\n\nSOURCE :\n" + caption[:2500]
+        + "\n\nSCÈNES :\n" + json.dumps(sc, ensure_ascii=False))
+    try:
+        d = first_ok(RANK_MODELS, {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {
+            "responseMimeType": "application/json", "responseJsonSchema": VERIF_TEXTES}})
+        out = json.loads("".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"] if not p.get("thought")))
+    except Exception as e:
+        print("vérification des textes impossible :", e, file=sys.stderr)
+        return
+    chif = lambda t: {re.sub(r"[\s  .]", "", x) for x in re.findall(r"\d[\d\s  .,]*", t or "")} - {""}
+    permis = chif(caption) | {c for s in scenes for c in chif(s.get("chiffre"))}
+    for r in out.get("scenes", []):
+        i = r.get("i")
+        if not (isinstance(i, int) and 0 <= i < len(scenes) - 1) or not (r.get("titre") or "").strip():
+            continue
+        neuf = {k: (r.get(k) or "").strip() for k in ("titre", "texte", "phrase")}
+        if not neuf["phrase"]:
+            neuf["phrase"] = scenes[i].get("phrase", "")
+        intrus = (chif(neuf["titre"]) | chif(neuf["texte"])) - permis
+        if intrus:
+            print(f"vérification : scène {i} écartée (nombres absents de la source : {intrus})", file=sys.stderr)
+            continue
+        if nom and i == 0 and not (_cite(nom, neuf["titre"]) and _cite(nom, neuf["phrase"])):
+            print("vérification : couverture écartée (le nom n'y est plus)", file=sys.stderr)
+            continue
+        if len(neuf["titre"]) > LIMITS["titre"] + 10:
+            continue
+        avant = {k: scenes[i].get(k, "") for k in neuf}
+        scenes[i].update(neuf)
+        if avant != neuf:
+            print(f"vérification : scène {i} réécrite : {neuf['titre']} | {neuf['phrase']}", file=sys.stderr)
     _clean(scenes)
 
 
@@ -188,6 +367,9 @@ def _clean(scenes):
         for k in ("chiffre", "titre", "texte", "kicker"):  # le shekel s'écrit ₪ à l'écran, jamais NIS
             if s.get(k):
                 s[k] = re.sub(r"(\d|Md|M|k)\s*(?:NIS|ILS)\b", r"\1₪", s[k]).replace(" NIS", " shekels")
+                s[k] = re.sub(r"(\d)\s*Mds?\s*₪", r"\1 Md₪", s[k])
+        if s.get("phrase"):  # coquilles vues dans la voix off (« sjekels »)
+            s["phrase"] = re.sub(r"\b[sc]h?j?e[kq]u?el(s?)\b", r"shekel\1", s["phrase"], flags=re.I)
         t = s.get("texte", "")
         if len(t) > LIMITS["texte"] + 25 or len(_norm(t)) <= 3 or _norm(t) == _norm(s.get("chiffre", "")):
             s["texte"] = ""
@@ -710,7 +892,8 @@ def etape_montage(job, saved, PC):
 
 def cover_photo(ent, contexte):
     """Choix automatique (sans validation) : le premier du classement."""
-    c = cover_candidates(ent, contexte, 1) or cover_candidates(ent, contexte, 1, autres=True, force=True)
+    # Jamais d'image non classée (« KSP » a ramené la mitrailleuse suédoise Ksp 58) : sinon, couverture graphique
+    c = cover_candidates(ent, contexte, 1) or cover_candidates(ent, contexte, 1, autres=True)
     return photo_dict(c[0]) if c else None
 
 
@@ -888,7 +1071,8 @@ def render(job, out):
     if (job.get("photo") is not None or job.get("autres")) and saved:  # le plan déjà établi est repris tel quel
         plan = {k: v for k, v in saved.items() if k in ("entite", "scenes", "retire")}
     else:
-        plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""))
+        actu = not info and not job.get("caption", "").lstrip().lower().startswith("le saviez-vous")
+        plan = job.get("plan") or analyse(job["caption"], slides, job.get("maj", ""), actu)
     if plan.get("retire"):  # slide dont le chiffre doublonnait l'accroche
         slides = [p for k, p in enumerate(slides) if k not in plan["retire"]]
         n = len(slides)

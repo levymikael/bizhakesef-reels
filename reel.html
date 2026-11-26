@@ -63,6 +63,13 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #fff; 
 .cta-btn { position: absolute; left: 50%; top: 1230px; transform: translateX(-50%); padding: 30px 60px; border-radius: 60px;
            background: var(--blue); color: #fff; font-weight: 800; font-size: 46px; white-space: nowrap; }
 
+/* Couverture d'actualité : valeur de départ barrée (« 205 ₪ → 41 ₪ ») et soulignement qui se trace */
+.avant { position: absolute; left: 60px; top: 600px; font-weight: 800; font-size: 96px; color: #9AA6BF; white-space: nowrap; }
+.avant s { text-decoration-thickness: 10px; text-decoration-color: var(--down); }
+.avant .fl { color: var(--ink); margin-left: 24px; }
+.sticker .av { font-size: .62em; opacity: .8; text-decoration-thickness: 6px; margin-right: 14px; }
+.sticker .fl2 { margin-right: 14px; }
+.marker { position: absolute; left: 60px; height: 16px; border-radius: 8px; width: 0; }
 /* Volet de transition */
 .wipe { position: absolute; top: -200px; height: 2320px; width: 1500px; left: 0; transform: translateX(2000px) skewX(-14deg); }
 .wipe.w1 { background: var(--blue); }
@@ -118,8 +125,9 @@ const DATA = /*DATA*/null/*END*/;
 const STAR = `<svg viewBox="0 0 100 100"><g fill="none" stroke="#0038B8" stroke-width="3.2" stroke-linejoin="miter"><polygon points="50,8 86.4,71 13.6,71"/><polygon points="50,92 13.6,29 86.4,29"/></g></svg>`;
 const STAR_W = `<svg viewBox="0 0 100 100"><g fill="none" stroke="#fff" stroke-width="9" stroke-linejoin="miter"><polygon points="50,8 86.4,71 13.6,71"/><polygon points="50,92 13.6,29 86.4,29"/></g></svg>`;
 const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
-const nb = s => esc(s).replace(/ ([:;!?%€$»])/g, " $1").replace(/« /g, "« ");
-const words = (s, cls) => nb(s).split(/\s+/).filter(Boolean).map(w => `<span class="w a" data-k="${cls}">${w}</span>`).join("");
+const nb = s => esc(s).replace(/ ([:;!?%€$»₪])/g, " $1").replace(/« /g, "« ");
+// Les nombres (« 50 000 ₪ ») ne sont jamais coupés en fin de ligne : on ne coupe que sur les espaces ordinaires
+const words = (s, cls) => nb(String(s || "").replace(/(\d) (?=\d{3}\b)/g, "$1 ")).split(/[ \t\n]+/).filter(Boolean).map(w => `<span class="w a" data-k="${cls}">${w}</span>`).join("");
 const tcol = t => t === "hausse" ? "var(--up)" : t === "baisse" ? "var(--down)" : "var(--blue)";
 
 // Chiffre : préfixe, valeur numérique, décimales, suffixe (pour le compteur)
@@ -168,9 +176,15 @@ function sceneHTML(s, i) {
       <div class="cta-btn a" data-k="pulse" data-d=".6">Suivre @bizhakesef</div></div>`;
   }
   if (i === 0) {
-    const p = DATA.photo, n = parseNum(s.chiffre);
-    const hasP = !!p;
-    const ty = hasP ? 1210 : 820;
+    const p0 = DATA.photo, n = parseNum(s.chiffre);
+    // Actualité avec un logo seulement : c'est le chiffre qui fait la couverture, le logo passe en vignette
+    const actu = (DATA.serie || "actu") === "actu";
+    const logoMini = actu && p0 && p0.logo && n;
+    const p = logoMini ? null : p0, hasP = !!p;
+    const av = actu && s.avant ? s.avant : "";
+    const ty = hasP ? 1210 : (av ? 1040 : 920);
+    const avHTML = av && !hasP ? `<div class="avant"><s>${nb(av)}</s><span class="fl">→</span></div>` : "";
+    const mini0 = logoMini ? `<div class="mini logo"><img src="${p0.src}"></div>` : "";
     return `<div class="scene" id="s0">
       ${s.kicker ? `<div class="kicker a" data-k="left">${esc(s.kicker)}</div>` : ""}
       ${hasP ? `<div class="ph ${p.logo ? "logo" : ""} a" data-k="photo" data-d=".05">
@@ -178,9 +192,10 @@ function sceneHTML(s, i) {
           <svg class="ring" viewBox="0 0 660 660"><circle cx="330" cy="330" r="318" fill="none" stroke="#0038B8" stroke-width="14" stroke-linecap="round" class="ringc" style="stroke-dasharray:1998;stroke-dashoffset:1998"/></svg>
           ${p.nom ? `<div class="name a" data-k="up" data-d=".45">${esc(p.nom)}</div>` : ""}</div>
           ${p.credit ? `<div class="credit">${esc(p.credit)}</div>` : ""}`
-        : (n ? `<div class="big a" data-k="pop" style="top:470px;color:${col}"><span class="cnt" data-i="0">${esc(s.chiffre)}</span></div>` : "")}
-      ${hasP && s.chiffre ? `<div class="sticker a" data-k="sticker" data-d=".55" style="background:${col}"><span class="cnt" data-i="0">${esc(s.chiffre)}</span></div>` : ""}
-      <div class="title" style="top:${ty}px;font-size:${titleSize(s.titre, 92)}px">${words(s.titre, "word")}</div></div>`;
+        : (n ? `${avHTML}${mini0}<div class="big a beat" data-k="pop" style="top:${av ? 720 : 600}px;color:${col}"><span class="cnt" data-i="0">${esc(s.chiffre)}</span></div>` : "")}
+      ${hasP && s.chiffre ? `<div class="sticker a beat" data-k="sticker" data-d=".55" style="background:${col}">${av ? `<s class="av">${nb(av)}</s><span class="fl2">→</span>` : ""}<span class="cnt" data-i="0">${esc(s.chiffre)}</span></div>` : ""}
+      <div class="title" style="top:${ty}px;font-size:${titleSize(s.titre, 92)}px">${words(s.titre, "word")}</div>
+      ${actu ? `<div class="marker" style="top:${ty - 26}px;background:${col}"></div>` : ""}</div>`;
   }
   const n = parseNum(s.chiffre);
   const arrow = s.tendance === "hausse" ? "▲" : s.tendance === "baisse" ? "▼" : "";
@@ -243,7 +258,19 @@ function render(t) {
   const ring = sc.querySelector(".ringc");
   if (ring) ring.style.strokeDashoffset = 1998 * (1 - eInOut(clamp((lt - .15) / .9)));
   const kb = sc.querySelector(".kb");
-  if (kb) kb.style.transform = `scale(${1.18 - .14 * clamp(lt / dur)})`;
+  // Couverture : zoom marqué pendant les 3 premières secondes (le mouvement retient), puis lent
+  if (kb) kb.style.transform = i === 0
+    ? `scale(${1.24 - .16 * eOut(clamp(t / 3)) - .04 * clamp(t / dur)}) translateX(${-14 * eOut(clamp(t / 3))}px)`
+    : `scale(${1.18 - .14 * clamp(lt / dur)})`;
+  if (i === 0) {
+    // Le chiffre de l'accroche bat deux fois et un trait se trace au-dessus du titre, dès la 1re seconde
+    sc.querySelectorAll(".beat").forEach(el => {
+      const b = t < 2.4 ? 1 + .1 * Math.abs(Math.sin(t * Math.PI / 0.8)) : 1;
+      el.style.transform = (el.style.transform || "") + ` scale(${b})`;
+    });
+    const mk = sc.querySelector(".marker");
+    if (mk) mk.style.width = (eOut(clamp(t / 1.2)) * 620) + "px";
+  }
 
   // Décor vivant
   document.getElementById("star").style.transform = `rotate(${t * 5}deg) scale(${1 + .03 * Math.sin(t * 1.3)})`;

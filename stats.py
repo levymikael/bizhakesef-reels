@@ -40,7 +40,8 @@ def main():
     out = {"releve": dt.datetime.utcnow().isoformat(timespec="minutes") + "Z"}
     out["compte"] = g(IG, fields="followers_count,media_count,username")
     out["audience"] = {b: demographie(b) for b in ("city", "country", "age", "gender")}
-    # Abonnés en ligne par heure (UTC dans l'API) : moyenne des jours disponibles, convertie en heure d'Israël
+    # Abonnés en ligne par heure : l'API donne les heures du Pacifique (America/Los_Angeles), pas UTC.
+    # Moyenne des jours disponibles, convertie en heure d'Israël (creux attendu vers 3-5 h du matin)
     on = g(f"{IG}/insights", metric="online_followers", period="lifetime",
            since=int((dt.datetime.utcnow() - dt.timedelta(days=7)).timestamp()), until=int(dt.datetime.utcnow().timestamp()))
     try:
@@ -49,7 +50,9 @@ def main():
         for v in on["data"][0]["values"]:
             for h, n in (v.get("value") or {}).items():
                 cumul.setdefault(int(h), []).append(n)
-        decal = int(dt.datetime.now(ZoneInfo("Asia/Jerusalem")).utcoffset().total_seconds() // 3600)
+        maintenant = dt.datetime.now(dt.timezone.utc)
+        decal = int((maintenant.astimezone(ZoneInfo("Asia/Jerusalem")).utcoffset()
+                     - maintenant.astimezone(ZoneInfo("America/Los_Angeles")).utcoffset()).total_seconds() // 3600)
         out["en_ligne"] = {f"{(h + decal) % 24:02d}h": round(sum(l) / len(l)) for h, l in sorted(cumul.items())}
     except Exception as e:
         out["en_ligne"] = {"erreur": str(on.get("erreur") or e)}

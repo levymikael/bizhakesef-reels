@@ -609,6 +609,31 @@ def _site_cands(site):
     return list({c["url"]: c for c in out}.values())[:4]
 
 
+ARTICLE_URL = ""  # lien de l'article source (colonne C), fourni par le relais : sa photo montre souvent le produit exact
+
+
+def _article_cands(url):
+    """Images de l'article source : l'image de partage et les photos du corps de l'article (souvent la photo
+    officielle du produit ou de la société, fournie à la presse)."""
+    if not re.match(r"https?://", url or ""):
+        return []
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        base, page = r.geturl(), r.read(1500000).decode("utf-8", "replace")
+    dom = re.sub(r"^https?://(www\.)?|/.*$", "", base)
+    out = []
+    for tag in re.findall(r"<meta[^>]*>", page, re.I):
+        attr = dict((k.lower(), v) for k, v in re.findall(r"""([\w:-]+)\s*=\s*["']([^"']*)["']""", tag))
+        if (attr.get("property") or attr.get("name") or "").lower() in ("og:image", "twitter:image") and attr.get("content"):
+            out.append(urllib.parse.urljoin(base, attr["content"]))
+    for src in re.findall(r"""<img[^>]+src=["'](https?://[^"']+\.(?:jpe?g|png|webp)[^"']*)["']""", page, re.I):
+        if not re.search(r"logo|icon|avatar|sprite|banner|pixel|ads?[/_.]", src, re.I):
+            out.append(src)
+    out = list(dict.fromkeys(out))[:5]
+    return [{"url": u, "credit": f"Photo : {dom}", "label": f"Photo de l'article source ({dom}) : à vérifier, souvent la photo officielle"}
+            for u in out]
+
+
 def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
     """Photos candidates pour la couverture, classées par Gemini : le logo pour une société ou une institution,
     le portrait pour une personne, une image concrète pour un sujet général ; jamais un bâtiment.
@@ -629,6 +654,8 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         jobs.append(lambda: _logo_cands(ent.get("wikipedia") or nom))
     if typ in ("entreprise", "institution") and ent.get("site"):
         jobs.append(lambda: _site_cands(ent["site"]))
+    if ARTICLE_URL:  # la photo de l'article : souvent le produit ou la marque exacte (ColamaX)
+        jobs.append(lambda: _article_cands(ARTICLE_URL))
     for x in qs:
         jobs += [lambda x=x: _commons_cands(x, 8 if autres else 5), lambda x=x: _openverse_cands(x, 4, 2 if autres else 1),
                  lambda x=x: _pexels_cands(x, 4 if autres else 3), lambda x=x: _pixabay_cands(x, 4 if autres else 3),
@@ -713,6 +740,9 @@ def cover_candidates(ent, contexte, k=4, exclure=(), autres=False, force=False):
         "- Exclus aussi les captures d'écran, schémas, cartes, filigranes, images floues ou mal cadrées, et les logos "
         "accompagnés de longs textes.\n"
         "- Une VRAIE PHOTO exacte et forte (le dirigeant nommé, le produit, un magasin, un avion ou un navire de la société, une scène qui montre le fait) passe AVANT le logo : les spectateurs restent bien plus longtemps sur une photo plein écran que sur un logo. Le logo reste une bonne proposition de secours, en dernière position.\n"
+        "- Une « photo de l'article source » qui montre le produit, la marque ou la personne EXACTE du sujet (la canette "
+        "de la marque, le dirigeant nommé) est souvent la photo officielle : classe-la en tête. Écarte-la si elle "
+        "montre autre chose (bandeau publicitaire, autre sujet, photo d'illustration générique).\n"
         "- Varie les propositions : des images franchement DIFFÉRENTES entre elles (par exemple un logo, un produit, un "
         "dirigeant, une scène), jamais deux logos ni deux photos presque identiques. Inclus au moins une image concrète "
         "du secteur ou de l'activité quand il y en a une bonne.\n"
@@ -1046,6 +1076,8 @@ def portrait_info(titre):
 
 
 def render(job, out):
+    global ARTICLE_URL
+    ARTICLE_URL = (job.get("url") or "").strip()
     tmp = Path(tempfile.mkdtemp())
     info = portrait_info(job.get("titre"))
     garder = (info or {}).get("garder") or []

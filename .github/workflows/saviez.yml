@@ -1,6 +1,6 @@
 name: Le saviez-vous ? Bizhakesef
 
-# Chaque dimanche vers 8 h 30 (heure d'Israël), pour le rendez-vous du lundi 7 h 30 : une proposition arrive sur Telegram, à valider comme un article.
+# Chaque dimanche vers 8 h 30 (heure d'Israël), pour le rendez-vous du lundi 9 h : une proposition arrive sur Telegram, à valider comme un article.
 on:
   workflow_dispatch:
   repository_dispatch:
